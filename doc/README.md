@@ -81,6 +81,25 @@ Expected files:
 - `binnt/basebox.exe`
 - `binnt64/basebox.exe`
 
+### Linux missing libraries
+
+If a Linux launcher detects unresolved shared libraries, it stops before startup and prints:
+
+- each missing `.so` filename
+- one distro-specific install command (`apt-get`, `dnf`, `pacman`, or `zypper`)
+
+Example:
+
+```text
+Error: Missing shared libraries required by /path/to/ensemble/basebox/10/binl64/basebox:
+  - libX11.so.6
+  - libpulse.so.0
+Recommended install command (Debian/Ubuntu):
+  sudo apt-get update && sudo apt-get install -y libasound2 libpulse0 libsamplerate0 libgbm1 libwayland-egl1 libwayland-client0 libwayland-cursor0 libxkbcommon0 libdecor-0-0 libx11-6 libxext6 libxrender1 libgl1
+```
+
+If `ldd` is not available, the launcher prints a warning and continues without preflight checks.
+
 ### Bad ZIP root layout
 
 If unzip results in any top-level directory other than `ensemble/`, the package is invalid. The packer checks this and aborts when the archive root is not exactly `ensemble/`.
