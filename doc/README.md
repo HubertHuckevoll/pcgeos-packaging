@@ -7,22 +7,50 @@ Dockerized packer that downloads the latest PC/GEOS ensemble and Basebox archive
 Run from the repository root:
 
 ```bash
-docker build -f Dockerfile -t pcgeos-pack-ensemble .
+./docker-build.sh
+```
+
+Optional image override:
+
+```bash
+IMAGE_TAG="pcgeos-pack-ensemble:dev" ./docker-build.sh
 ```
 
 ## Run
 
 ```bash
+./docker-run.sh
+```
+
+Optional overrides:
+
+```bash
+IMAGE_TAG="pcgeos-pack-ensemble:dev" \
+GEOS_ZIP_URL="https://github.com/bluewaysw/pcgeos/releases/download/CI-latest/pcgeos-ensemble_nc.zip" \
+BASEBOX_ZIP_URL="https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip" \
+OUTPUT_NAME="ensemble.zip" \
+OUTPUT_DIR="/work/packaged" \
+./docker-run.sh
+```
+
+Default output is `/work/packaged/ensemble.zip` (host: `./packaged/ensemble.zip`).
+
+## Advanced (Manual Docker)
+
+If you prefer direct Docker commands instead of helper scripts:
+
+```bash
+docker build -f Dockerfile -t pcgeos-pack-ensemble:local .
 docker run --rm \
   -v "$(pwd):/work" \
   -e GEOS_ZIP_URL="https://github.com/bluewaysw/pcgeos/releases/download/CI-latest/pcgeos-ensemble_nc.zip" \
   -e BASEBOX_ZIP_URL="https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip" \
   -e OUTPUT_NAME="ensemble.zip" \
   -e OUTPUT_DIR="/work/packaged" \
-  pcgeos-pack-ensemble
+  pcgeos-pack-ensemble:local
 ```
 
-Default output is `/work/packaged/ensemble.zip` (host: `./packaged/ensemble.zip`).
+`start`/`stop` scripts are intentionally not provided because packaging is a one-shot container run.
 
 ## Output Structure
 
