@@ -13,4 +13,4 @@ if [ ! -x "$BASEBOX_EXEC" ]; then
     exit 1
 fi
 
-exec "$BASEBOX_EXEC" -noprimaryconf -nolocalconf -conf "$USER_CONFIG_FILE" "$@"
+exec "$BASEBOX_EXEC" -noprimaryconf -nolocalconf -conf "$USER_CONFIG_FILE" "$@" {{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}

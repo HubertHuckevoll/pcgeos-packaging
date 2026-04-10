@@ -30,10 +30,27 @@ GEOS_ZIP_URL="https://github.com/bluewaysw/pcgeos/releases/download/CI-latest/pc
 BASEBOX_ZIP_URL="https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip" \
 OUTPUT_NAME="ensemble.zip" \
 OUTPUT_DIR="/work/packaged" \
+BASEBOX_CONSOLE_MODE="hide" \
 ./docker-run.sh
 ```
 
 Default output is `/work/packaged/ensemble.zip` (host: `./packaged/ensemble.zip`).
+
+Console mode override for launcher generation:
+
+```bash
+BASEBOX_CONSOLE_MODE=show ./pack-ensemble.sh   # default Basebox console behavior
+BASEBOX_CONSOLE_MODE=hide ./pack-ensemble.sh   # hides console output (OS-specific)
+```
+
+Default mode is `hide`.
+
+Supported values are only `show` and `hide`.
+Any other value (including `auto`) falls back to `hide`.
+
+`hide` behavior is platform-specific:
+- Unix launchers (`.sh`): append `>/dev/null 2>&1 &` to launch quietly in background.
+- Windows launchers (`.cmd`): inject `-noconsole`.
 
 ## Advanced (Manual Docker)
 
@@ -47,6 +64,7 @@ docker run --rm \
   -e BASEBOX_ZIP_URL="https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip" \
   -e OUTPUT_NAME="ensemble.zip" \
   -e OUTPUT_DIR="/work/packaged" \
+  -e BASEBOX_CONSOLE_MODE="hide" \
   pcgeos-pack-ensemble:local
 ```
 

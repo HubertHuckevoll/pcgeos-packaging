@@ -6,6 +6,7 @@ GEOS_ZIP_URL="${GEOS_ZIP_URL:-https://github.com/bluewaysw/pcgeos/releases/downl
 BASEBOX_ZIP_URL="${BASEBOX_ZIP_URL:-https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip}"
 OUTPUT_NAME="${OUTPUT_NAME:-ensemble.zip}"
 OUTPUT_DIR="${OUTPUT_DIR:-/work/packaged}"
+BASEBOX_CONSOLE_MODE="${BASEBOX_CONSOLE_MODE:-hide}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -26,5 +27,6 @@ docker run --rm \
   -e BASEBOX_ZIP_URL="$BASEBOX_ZIP_URL" \
   -e OUTPUT_NAME="$OUTPUT_NAME" \
   -e OUTPUT_DIR="$OUTPUT_DIR" \
+  -e BASEBOX_CONSOLE_MODE="$BASEBOX_CONSOLE_MODE" \
   "$IMAGE_TAG"
 printf '[docker-run] Done. Output expected at %s\n' "$OUTPUT_DIR/$OUTPUT_NAME"

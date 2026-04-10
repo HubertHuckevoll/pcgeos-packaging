@@ -16,7 +16,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-"%BASEBOX_EXEC%" -noprimaryconf -nolocalconf -conf "%USER_CONFIG_FILE%" %*
+"%BASEBOX_EXEC%" {{BASEBOX_CONSOLE_ARG_WIN}} -noprimaryconf -nolocalconf -conf "%USER_CONFIG_FILE%" %*
 set EXIT_CODE=%ERRORLEVEL%
 popd >nul
 exit /b %EXIT_CODE%

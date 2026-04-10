@@ -5,6 +5,7 @@ GEOS_ZIP_URL="${GEOS_ZIP_URL:-https://github.com/bluewaysw/pcgeos/releases/downl
 BASEBOX_ZIP_URL="${BASEBOX_ZIP_URL:-https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip}"
 OUTPUT_NAME="${OUTPUT_NAME:-ensemble.zip}"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/packaged}"
+BASEBOX_CONSOLE_MODE="${BASEBOX_CONSOLE_MODE:-hide}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LAUNCHERS=(
@@ -34,6 +35,8 @@ STAGED_ENSEMBLE_DIR=""
 STAGED_BASEBOX_DIR=""
 OUTPUT_ZIP_PATH=""
 LOADER_DIR_DOS=""
+BASEBOX_CONSOLE_ARG_WIN=""
+BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
 
 progress() {
     printf '[pack-ensemble] %s\n' "$1"
@@ -225,12 +228,48 @@ generate_basebox_conf() {
         "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_ENSEMBLE_DIR/basebox.conf"
 }
 
+resolve_basebox_console_arg() {
+    progress 'resolve_basebox_console_arg'
+    case "${BASEBOX_CONSOLE_MODE,,}" in
+        show)
+            BASEBOX_CONSOLE_ARG_WIN=""
+            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
+            ;;
+        hide)
+            BASEBOX_CONSOLE_ARG_WIN="-noconsole"
+            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=">/dev/null 2>&1 &"
+            ;;
+        *)
+            printf "Warning: Invalid BASEBOX_CONSOLE_MODE '%s'; falling back to 'hide' (expected: show or hide)\n" "$BASEBOX_CONSOLE_MODE" >&2
+            BASEBOX_CONSOLE_ARG_WIN="-noconsole"
+            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=">/dev/null 2>&1 &"
+            ;;
+    esac
+}
+
+escape_sed_replacement() {
+    printf '%s' "$1" | sed 's/[\\|&]/\\&/g'
+}
+
 install_launchers() {
     progress 'install_launchers'
     local launcher
+    local escaped_console_arg_win
+    local escaped_console_arg_unix_suffix
+
+    escaped_console_arg_win="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_WIN")"
+    escaped_console_arg_unix_suffix="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_UNIX_SUFFIX")"
 
     for launcher in "${LAUNCHERS[@]}"; do
-        cp "$TEMPLATE_DIR_RESOLVED/$launcher" "$STAGED_ENSEMBLE_DIR/$launcher"
+        if [[ "$launcher" == *.cmd ]]; then
+            sed \
+                -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
+                "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
+        else
+            sed \
+                -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
+                "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
+        fi
     done
 
     find "$STAGED_ENSEMBLE_DIR" -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} +
@@ -297,6 +336,7 @@ main() {
     stage_basebox_tree
     locate_loader_dir
     generate_basebox_conf
+    resolve_basebox_console_arg
     install_launchers
     validate_basebox_binaries
     check_no_absolute_path_leaks
