@@ -206,20 +206,21 @@ locate_loader_dir() {
 
     loader_parent_abs="$(dirname "$loader_path")"
     if [[ "$loader_parent_abs" == "$STAGED_ENSEMBLE_DIR" ]]; then
-        loader_parent_rel='.'
-    else
-        loader_parent_rel="${loader_parent_abs#"$STAGED_ENSEMBLE_DIR"/}"
+        LOADER_DIR_DOS='ensemble'
+        return
     fi
 
+    loader_parent_rel="${loader_parent_abs#"$STAGED_ENSEMBLE_DIR"/}"
+
     # basebox.conf [autoexec] uses DOS-style separators.
-    LOADER_DIR_DOS="$(printf '%s' "$loader_parent_rel" | sed 's#/#\\\\#g')"
+    LOADER_DIR_DOS="ensemble\\$(printf '%s' "$loader_parent_rel" | sed 's#/#\\\\#g')"
 }
 
 generate_basebox_conf() {
     progress 'generate_basebox_conf'
-    # Use a relative mount so users can unzip/run from any absolute location.
+    # Mount the parent directory so DOS C: contains the ensemble folder.
     sed \
-        -e 's|{{HOST_PATH}}|.|g' \
+        -e 's|{{HOST_PATH}}|..|g' \
         -e "s|{{LOADER_DIR}}|$LOADER_DIR_DOS|g" \
         "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_ENSEMBLE_DIR/basebox.conf"
 }

@@ -10,4 +10,13 @@ if not exist "%BASEBOX_EXEC%" (
     exit /b 1
 )
 
+pushd "%SCRIPT_DIR%" >nul
+if errorlevel 1 (
+    echo Error: Could not change to launcher directory "%SCRIPT_DIR%".
+    exit /b 1
+)
+
 "%BASEBOX_EXEC%" -noprimaryconf -nolocalconf -conf "%USER_CONFIG_FILE%" %*
+set EXIT_CODE=%ERRORLEVEL%
+popd >nul
+exit /b %EXIT_CODE%
