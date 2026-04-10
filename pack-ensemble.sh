@@ -82,6 +82,17 @@ check_required_tools() {
     select_downloader
 }
 
+clean_output_dir() {
+    progress 'clean_output_dir'
+
+    if [[ -z "$OUTPUT_DIR" || "$OUTPUT_DIR" == "/" ]]; then
+        die "Refusing to clean unsafe OUTPUT_DIR value: '$OUTPUT_DIR'"
+    fi
+
+    rm -rf "$OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR"
+}
+
 resolve_template_dir() {
     progress 'resolve_template_dir'
     local candidate
@@ -210,7 +221,7 @@ generate_basebox_conf() {
     sed \
         -e 's|{{HOST_PATH}}|.|g' \
         -e "s|{{LOADER_DIR}}|$LOADER_DIR_DOS|g" \
-        "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_BASEBOX_DIR/basebox.conf"
+        "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_ENSEMBLE_DIR/basebox.conf"
 }
 
 install_launchers() {
@@ -240,7 +251,7 @@ check_no_absolute_path_leaks() {
     local file
     local -a generated_files=()
 
-    generated_files+=("$STAGED_BASEBOX_DIR/basebox.conf")
+    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.conf")
 
     for file in "${LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
@@ -274,6 +285,7 @@ print_success() {
 
 main() {
     progress 'main'
+    clean_output_dir
     check_required_tools
     resolve_template_dir
     init_workspace

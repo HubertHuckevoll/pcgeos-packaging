@@ -36,8 +36,8 @@ Key paths inside:
 
 ```text
 ensemble/
+  basebox.conf
   basebox/10/
-    basebox.conf
     binl64/basebox
     binmac/basebox
     binrpi64/basebox

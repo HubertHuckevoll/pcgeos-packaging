@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASEBOX_DIR="${SCRIPT_DIR}/basebox/10"
 BASEBOX_EXEC="${BASEBOX_DIR}/binl64/basebox"
-USER_CONFIG_FILE="${BASEBOX_DIR}/basebox.conf"
+USER_CONFIG_FILE="${SCRIPT_DIR}/basebox.conf"
 
 if [ ! -x "$BASEBOX_EXEC" ]; then
     printf 'Error: Expected Basebox executable not found at %s\n' "$BASEBOX_EXEC" >&2
