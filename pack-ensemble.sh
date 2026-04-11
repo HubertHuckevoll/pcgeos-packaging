@@ -256,14 +256,21 @@ escape_sed_replacement() {
 
 install_launchers() {
     progress 'install_launchers'
+    local escaped_basebox_version
     local escaped_console_arg_win
     local escaped_console_arg_unix_suffix
 
+    escaped_basebox_version="$(escape_sed_replacement "$BASEBOX_VERSION")"
     escaped_console_arg_win="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_WIN")"
     escaped_console_arg_unix_suffix="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_UNIX_SUFFIX")"
 
-    cp "$TEMPLATE_DIR_RESOLVED/ensemble.sh" "$STAGED_ENSEMBLE_DIR/ensemble.sh"
-    cp "$TEMPLATE_DIR_RESOLVED/ensemble.cmd" "$STAGED_ENSEMBLE_DIR/ensemble.cmd"
+    sed \
+        -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+        "$TEMPLATE_DIR_RESOLVED/ensemble.sh" > "$STAGED_ENSEMBLE_DIR/ensemble.sh"
+
+    sed \
+        -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+        "$TEMPLATE_DIR_RESOLVED/ensemble.cmd" > "$STAGED_ENSEMBLE_DIR/ensemble.cmd"
 
     sed \
         -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
@@ -272,8 +279,6 @@ install_launchers() {
     sed \
         -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
         "$TEMPLATE_DIR_RESOLVED/basebox-version.cmd" > "$STAGED_BASEBOX_DIR/ensemble.cmd"
-
-    printf '%s\n' "$BASEBOX_VERSION" > "$STAGED_ENSEMBLE_DIR/basebox/version.txt"
 
     chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh" "$STAGED_BASEBOX_DIR/ensemble.sh"
 }
@@ -295,7 +300,6 @@ check_no_absolute_path_leaks() {
     local -a generated_files=()
 
     generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.conf")
-    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox/version.txt")
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")

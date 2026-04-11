@@ -4,6 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENSEMBLE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 USER_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.conf"
+BASEBOX_VERSION="${BASEBOX_VERSION:-}"
+
+if [[ -z "$BASEBOX_VERSION" ]]; then
+    printf 'Error: BASEBOX_VERSION must be provided by ensemble.sh launcher.\n' >&2
+    exit 1
+fi
 
 OS_NAME="$(uname -s)"
 ARCH_NAME="$(uname -m)"
@@ -33,7 +39,7 @@ case "$OS_NAME" in
         ;;
 esac
 
-BASEBOX_EXEC="${SCRIPT_DIR}/${BASEBOX_BIN_REL}"
+BASEBOX_EXEC="${ENSEMBLE_DIR}/basebox/${BASEBOX_VERSION}/${BASEBOX_BIN_REL}"
 
 cd "$ENSEMBLE_DIR"
 

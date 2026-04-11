@@ -1,6 +1,10 @@
 @echo off
 setlocal
 set "SCRIPT_DIR=%~dp0"
+if "%BASEBOX_VERSION%"=="" (
+    echo Error: BASEBOX_VERSION must be provided by ensemble.cmd launcher.
+    exit /b 1
+)
 
 set "ARCH=%PROCESSOR_ARCHITECTURE%"
 if defined PROCESSOR_ARCHITEW6432 set "ARCH=%PROCESSOR_ARCHITEW6432%"
@@ -10,14 +14,14 @@ if /I "%ARCH%"=="AMD64" set "BASEBOX_BIN_DIR=binnt64"
 if /I "%ARCH%"=="IA64" set "BASEBOX_BIN_DIR=binnt64"
 if /I "%ARCH%"=="ARM64" set "BASEBOX_BIN_DIR=binnt64"
 
-set "BASEBOX_EXEC=%SCRIPT_DIR%%BASEBOX_BIN_DIR%\basebox.exe"
+for %%I in ("%SCRIPT_DIR%..\..") do set "ENSEMBLE_DIR=%%~fI"
+set "BASEBOX_EXEC=%ENSEMBLE_DIR%\basebox\%BASEBOX_VERSION%\%BASEBOX_BIN_DIR%\basebox.exe"
+set "USER_CONFIG_FILE=%ENSEMBLE_DIR%\basebox.conf"
+
 if not exist "%BASEBOX_EXEC%" (
     echo Error: Expected Basebox executable not found at "%BASEBOX_EXEC%".
     exit /b 1
 )
-
-for %%I in ("%SCRIPT_DIR%..\..") do set "ENSEMBLE_DIR=%%~fI"
-set "USER_CONFIG_FILE=%ENSEMBLE_DIR%\basebox.conf"
 
 pushd "%ENSEMBLE_DIR%" >nul
 if errorlevel 1 (

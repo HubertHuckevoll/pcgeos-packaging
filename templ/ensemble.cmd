@@ -1,16 +1,8 @@
 @echo off
 setlocal
+rem Top-level dispatcher: this bundle is pinned to one basebox version.
+set "BASEBOX_VERSION={{BASEBOX_VERSION}}"
 set "SCRIPT_DIR=%~dp0"
-set "VERSION_FILE=%SCRIPT_DIR%basebox\version.txt"
 
-set /p BASEBOX_VERSION=<"%VERSION_FILE%"
-set "BASEBOX_VERSION=%BASEBOX_VERSION: =%"
-
-set "VERSION_LAUNCHER=%SCRIPT_DIR%basebox\%BASEBOX_VERSION%\ensemble.cmd"
-if not exist "%VERSION_LAUNCHER%" (
-    echo Error: Version launcher not found at "%VERSION_LAUNCHER%".
-    exit /b 1
-)
-
-call "%VERSION_LAUNCHER%" %*
+call "%SCRIPT_DIR%basebox\%BASEBOX_VERSION%\ensemble.cmd" %*
 exit /b %ERRORLEVEL%
