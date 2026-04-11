@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_TAG="${IMAGE_TAG:-pcgeos-pack-ensemble:local}"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${PACK_ENSEMBLE_CONFIG:-$SCRIPT_DIR/pack-ensemble.conf}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+IMAGE_TAG="${IMAGE_TAG:-${IMAGE_TAG_DEFAULT:-pcgeos-pack-ensemble:local}}"
 
 if ! command -v docker >/dev/null 2>&1; then
     printf 'Error: docker command not found. Please install Docker first.\n' >&2

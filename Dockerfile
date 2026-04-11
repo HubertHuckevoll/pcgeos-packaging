@@ -10,6 +10,7 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 COPY pack-ensemble.sh /app/pack-ensemble.sh
+COPY pack-ensemble.conf /app/pack-ensemble.conf
 COPY templ /app/templ
 RUN chmod +x /app/pack-ensemble.sh
 

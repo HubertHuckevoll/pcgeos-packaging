@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GEOS_ZIP_URL="${GEOS_ZIP_URL:-https://github.com/bluewaysw/pcgeos/releases/download/CI-latest/pcgeos-ensemble_nc.zip}"
-BASEBOX_ZIP_URL="${BASEBOX_ZIP_URL:-https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip}"
-OUTPUT_NAME="${OUTPUT_NAME:-ensemble.zip}"
-OUTPUT_DIR="${OUTPUT_DIR:-$PWD/packaged}"
-BASEBOX_CONSOLE_MODE="${BASEBOX_CONSOLE_MODE:-hide}"
-BASEBOX_VERSION="${BASEBOX_VERSION:-10}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${PACK_ENSEMBLE_CONFIG:-$SCRIPT_DIR/pack-ensemble.conf}"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    printf 'Error: Required config file not found: %s\n' "$CONFIG_FILE" >&2
+    exit 1
+fi
+
+source "$CONFIG_FILE"
 
 TOP_LEVEL_LAUNCHERS=(
     ensemble.sh

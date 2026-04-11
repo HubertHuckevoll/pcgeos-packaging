@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_TAG="${IMAGE_TAG:-pcgeos-pack-ensemble:local}"
-GEOS_ZIP_URL="${GEOS_ZIP_URL:-https://github.com/bluewaysw/pcgeos/releases/download/CI-latest/pcgeos-ensemble_nc.zip}"
-BASEBOX_ZIP_URL="${BASEBOX_ZIP_URL:-https://github.com/bluewaysw/pcgeos-basebox/releases/download/CI-latest-issue-13/pcgeos-basebox.zip}"
-OUTPUT_NAME="${OUTPUT_NAME:-ensemble.zip}"
-OUTPUT_DIR="${OUTPUT_DIR:-/work/packaged}"
-BASEBOX_CONSOLE_MODE="${BASEBOX_CONSOLE_MODE:-hide}"
-BASEBOX_VERSION="${BASEBOX_VERSION:-10}"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${PACK_ENSEMBLE_CONFIG:-$SCRIPT_DIR/pack-ensemble.conf}"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    printf 'Error: Required config file not found: %s\n' "$CONFIG_FILE" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+
+collect_config_var_names() {
+    # Parse variable names from lines like: : "${VAR:=value}"
+    sed -nE 's/^[[:space:]]*:[[:space:]]*"\$\{([A-Za-z_][A-Za-z0-9_]*)[:?=].*$/\1/p' "$CONFIG_FILE"
+}
+
+build_docker_env_args() {
+    local var
+    DOCKER_ENV_ARGS=()
+
+    while IFS= read -r var; do
+        [[ -n "$var" ]] || continue
+        DOCKER_ENV_ARGS+=(-e "$var")
+    done < <(collect_config_var_names)
+}
 
 if ! command -v docker >/dev/null 2>&1; then
     printf 'Error: docker command not found. Please install Docker first.\n' >&2
@@ -21,14 +37,13 @@ if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
     exit 1
 fi
 
+# Docker run should always use the container-facing output path from config.
+OUTPUT_DIR="$DOCKER_OUTPUT_DIR"
+build_docker_env_args
+
 printf '[docker-run] Running image %s\n' "$IMAGE_TAG"
 docker run --rm \
   -v "$SCRIPT_DIR:/work" \
-  -e GEOS_ZIP_URL="$GEOS_ZIP_URL" \
-  -e BASEBOX_ZIP_URL="$BASEBOX_ZIP_URL" \
-  -e OUTPUT_NAME="$OUTPUT_NAME" \
-  -e OUTPUT_DIR="$OUTPUT_DIR" \
-  -e BASEBOX_CONSOLE_MODE="$BASEBOX_CONSOLE_MODE" \
-  -e BASEBOX_VERSION="$BASEBOX_VERSION" \
+  "${DOCKER_ENV_ARGS[@]}" \
   "$IMAGE_TAG"
 printf '[docker-run] Done. Output expected at %s\n' "$OUTPUT_DIR/$OUTPUT_NAME"
