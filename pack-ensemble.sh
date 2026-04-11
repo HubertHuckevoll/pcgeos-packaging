@@ -11,6 +11,11 @@ fi
 
 source "$CONFIG_FILE"
 
+BUILD_VARIANTS=(
+    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR"
+    "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/german"
+)
+
 TOP_LEVEL_LAUNCHERS=(
     ensemble.sh
     ensemble.cmd
@@ -31,6 +36,7 @@ EXPECTED_BASEBOX_BINARIES=(
 
 DOWNLOADER=""
 TEMPLATE_DIR_RESOLVED=""
+TMP_WORK_ROOT=""
 TMP_ROOT=""
 GEOS_ZIP_PATH=""
 BASEBOX_ZIP_PATH=""
@@ -39,9 +45,11 @@ BASEBOX_EXTRACT_DIR=""
 STAGED_ENSEMBLE_DIR=""
 STAGED_BASEBOX_DIR=""
 OUTPUT_ZIP_PATH=""
+VARIANT_OUTPUT_DIR=""
 LOADER_DIR_DOS=""
 BASEBOX_CONSOLE_ARG_WIN=""
 BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
+BUILT_ARCHIVES=()
 
 progress() {
     printf '[pack-ensemble] %s\n' "$1"
@@ -49,7 +57,9 @@ progress() {
 
 cleanup() {
     progress 'cleanup'
-    if [[ -n "$TMP_ROOT" && -d "$TMP_ROOT" ]]; then
+    if [[ -n "$TMP_WORK_ROOT" && -d "$TMP_WORK_ROOT" ]]; then
+        rm -rf "$TMP_WORK_ROOT"
+    elif [[ -n "$TMP_ROOT" && -d "$TMP_ROOT" ]]; then
         rm -rf "$TMP_ROOT"
     fi
 }
@@ -128,9 +138,16 @@ resolve_template_dir() {
 }
 
 init_workspace() {
-    progress 'init_workspace'
-    TMP_ROOT="$(mktemp -d)"
-    trap cleanup EXIT
+    progress "init_workspace: $1"
+    local variant_key="$1"
+
+    if [[ -z "$TMP_WORK_ROOT" ]]; then
+        TMP_WORK_ROOT="$(mktemp -d)"
+        trap cleanup EXIT
+    fi
+
+    TMP_ROOT="$TMP_WORK_ROOT/$variant_key"
+    rm -rf "$TMP_ROOT"
 
     GEOS_ZIP_PATH="$TMP_ROOT/downloads/geos.zip"
     BASEBOX_ZIP_PATH="$TMP_ROOT/downloads/basebox.zip"
@@ -157,8 +174,9 @@ download_file() {
 }
 
 download_archives() {
-    progress 'download_archives'
-    download_file "$GEOS_ZIP_URL" "$GEOS_ZIP_PATH"
+    local geos_zip_url="$1"
+
+    download_file "$geos_zip_url" "$GEOS_ZIP_PATH"
     download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
 }
 
@@ -172,15 +190,18 @@ extract_archives() {
 }
 
 prepare_output_paths() {
-    progress 'prepare_output_paths'
-    STAGED_ENSEMBLE_DIR="$OUTPUT_DIR/ensemble"
+    progress "prepare_output_paths: $1"
+    local variant_output_dir="$1"
+
+    VARIANT_OUTPUT_DIR="$variant_output_dir"
+    STAGED_ENSEMBLE_DIR="$VARIANT_OUTPUT_DIR/ensemble"
     STAGED_BASEBOX_DIR="$STAGED_ENSEMBLE_DIR/basebox/$BASEBOX_VERSION"
-    OUTPUT_ZIP_PATH="$OUTPUT_DIR/$OUTPUT_NAME"
+    OUTPUT_ZIP_PATH="$VARIANT_OUTPUT_DIR/$OUTPUT_NAME"
 }
 
 stage_ensemble_tree() {
     progress 'stage_ensemble_tree'
-    mkdir -p "$OUTPUT_DIR"
+    mkdir -p "$VARIANT_OUTPUT_DIR"
     rm -rf "$STAGED_ENSEMBLE_DIR"
     rm -f "$OUTPUT_ZIP_PATH"
 
@@ -312,7 +333,7 @@ check_no_absolute_path_leaks() {
     done
 
     for file in "${generated_files[@]}"; do
-        if awk -v p1="$TMP_ROOT" -v p2="$PWD" -v p3="$OUTPUT_DIR" 'index($0,p1) || index($0,p2) || index($0,p3) { found=1 } END { exit found ? 0 : 1 }' "$file"; then
+        if awk -v p1="$TMP_ROOT" -v p2="$PWD" -v p3="$VARIANT_OUTPUT_DIR" -v p4="$OUTPUT_DIR" 'index($0,p1) || index($0,p2) || index($0,p3) || index($0,p4) { found=1 } END { exit found ? 0 : 1 }' "$file"; then
             die "Absolute build path leaked into generated file: $file"
         fi
     done
@@ -321,7 +342,7 @@ check_no_absolute_path_leaks() {
 build_archive() {
     progress 'build_archive'
     (
-        cd "$OUTPUT_DIR"
+        cd "$VARIANT_OUTPUT_DIR"
         zip -qr "$OUTPUT_NAME" ensemble
     )
 }
@@ -334,28 +355,59 @@ verify_zip_layout() {
 
 print_success() {
     progress 'print_success'
-    printf 'Created %s\n' "$OUTPUT_ZIP_PATH"
+    local archive_path
+
+    for archive_path in "${BUILT_ARCHIVES[@]}"; do
+        printf 'Created %s\n' "$archive_path"
+    done
 }
 
-main() {
-    progress 'main'
-    clean_output_dir
-    check_required_tools
-    resolve_template_dir
-    init_workspace
-    download_archives
+build_variant() {
+    progress "build_variant: $1"
+    local variant_key="$1"
+    local geos_zip_url="$2"
+    local variant_output_dir="$3"
+
+    init_workspace "$variant_key"
+    download_archives "$geos_zip_url"
     extract_archives
-    prepare_output_paths
+    prepare_output_paths "$variant_output_dir"
     stage_ensemble_tree
     stage_basebox_tree
     locate_loader_dir
     generate_basebox_conf
-    resolve_basebox_console_arg
     install_launchers
     validate_basebox_binaries
     check_no_absolute_path_leaks
     build_archive
     verify_zip_layout
+    BUILT_ARCHIVES+=("$OUTPUT_ZIP_PATH")
+}
+
+main() {
+    progress 'main'
+    local variant_spec
+    local variant_key
+    local geos_zip_url
+    local variant_output_dir
+
+    clean_output_dir
+    check_required_tools
+    resolve_template_dir
+    resolve_basebox_console_arg
+
+    for variant_spec in "${BUILD_VARIANTS[@]}"; do
+        IFS='|' read -r variant_key geos_zip_url variant_output_dir <<< "$variant_spec"
+
+        [[ -n "$variant_key" ]] || die "Invalid variant key in BUILD_VARIANTS entry: $variant_spec"
+        [[ -n "$geos_zip_url" ]] || die "Missing GEOS URL for variant '$variant_key'"
+        [[ -n "$variant_output_dir" ]] || die "Missing output directory for variant '$variant_key'"
+
+        build_variant "$variant_key" "$geos_zip_url" "$variant_output_dir"
+    done
+
+    [[ "${#BUILT_ARCHIVES[@]}" -gt 0 ]] || die 'No archives were built.'
+
     print_success
 }
 
