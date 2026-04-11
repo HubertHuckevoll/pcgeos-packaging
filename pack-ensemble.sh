@@ -49,6 +49,7 @@ VARIANT_OUTPUT_DIR=""
 LOADER_DIR_DOS=""
 BASEBOX_CONSOLE_ARG_WIN=""
 BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
+DELETE_STAGED_ENSEMBLE_DIRS_RESOLVED="yes"
 BUILT_ARCHIVES=()
 
 progress() {
@@ -273,6 +274,31 @@ resolve_basebox_console_arg() {
     esac
 }
 
+resolve_delete_staged_ensemble_dirs() {
+    progress 'resolve_delete_staged_ensemble_dirs'
+    case "${DELETE_STAGED_ENSEMBLE_DIRS,,}" in
+        yes|true|1)
+            DELETE_STAGED_ENSEMBLE_DIRS_RESOLVED="yes"
+            ;;
+        no|false|0)
+            DELETE_STAGED_ENSEMBLE_DIRS_RESOLVED="no"
+            ;;
+        *)
+            printf "Warning: Invalid DELETE_STAGED_ENSEMBLE_DIRS '%s'; falling back to 'yes' (expected: yes/no)\n" "$DELETE_STAGED_ENSEMBLE_DIRS" >&2
+            DELETE_STAGED_ENSEMBLE_DIRS_RESOLVED="yes"
+            ;;
+    esac
+}
+
+cleanup_staged_ensemble_tree() {
+    progress 'cleanup_staged_ensemble_tree'
+    if [[ "$DELETE_STAGED_ENSEMBLE_DIRS_RESOLVED" != "yes" ]]; then
+        return
+    fi
+
+    rm -rf "$STAGED_ENSEMBLE_DIR"
+}
+
 escape_sed_replacement() {
     printf '%s' "$1" | sed 's/[\\|&]/\\&/g'
 }
@@ -381,6 +407,7 @@ build_variant() {
     check_no_absolute_path_leaks
     build_archive
     verify_zip_layout
+    cleanup_staged_ensemble_tree
     BUILT_ARCHIVES+=("$OUTPUT_ZIP_PATH")
 }
 
@@ -395,6 +422,7 @@ main() {
     check_required_tools
     resolve_template_dir
     resolve_basebox_console_arg
+    resolve_delete_staged_ensemble_dirs
 
     for variant_spec in "${BUILD_VARIANTS[@]}"; do
         IFS='|' read -r variant_key geos_zip_url variant_output_dir <<< "$variant_spec"
