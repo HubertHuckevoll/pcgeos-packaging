@@ -6,14 +6,17 @@ BASEBOX_ZIP_URL="${BASEBOX_ZIP_URL:-https://github.com/bluewaysw/pcgeos-basebox/
 OUTPUT_NAME="${OUTPUT_NAME:-ensemble.zip}"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/packaged}"
 BASEBOX_CONSOLE_MODE="${BASEBOX_CONSOLE_MODE:-hide}"
+BASEBOX_VERSION="${BASEBOX_VERSION:-10}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-LAUNCHERS=(
-    ensemble-l64.sh
-    ensemble-mac.sh
-    ensemble-rpi64.sh
-    ensemble-nt.cmd
-    ensemble-nt64.cmd
+TOP_LEVEL_LAUNCHERS=(
+    ensemble.sh
+    ensemble.cmd
+)
+
+VERSION_LAUNCHERS=(
+    ensemble.sh
+    ensemble.cmd
 )
 
 EXPECTED_BASEBOX_BINARIES=(
@@ -113,13 +116,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble-l64.sh" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/basebox-version.sh" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf and launcher templates.'
+    die 'Could not find templates directory with basebox.conf and unified launcher templates.'
 }
 
 init_workspace() {
@@ -169,7 +172,7 @@ extract_archives() {
 prepare_output_paths() {
     progress 'prepare_output_paths'
     STAGED_ENSEMBLE_DIR="$OUTPUT_DIR/ensemble"
-    STAGED_BASEBOX_DIR="$STAGED_ENSEMBLE_DIR/basebox/10"
+    STAGED_BASEBOX_DIR="$STAGED_ENSEMBLE_DIR/basebox/$BASEBOX_VERSION"
     OUTPUT_ZIP_PATH="$OUTPUT_DIR/$OUTPUT_NAME"
 }
 
@@ -253,26 +256,26 @@ escape_sed_replacement() {
 
 install_launchers() {
     progress 'install_launchers'
-    local launcher
     local escaped_console_arg_win
     local escaped_console_arg_unix_suffix
 
     escaped_console_arg_win="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_WIN")"
     escaped_console_arg_unix_suffix="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_UNIX_SUFFIX")"
 
-    for launcher in "${LAUNCHERS[@]}"; do
-        if [[ "$launcher" == *.cmd ]]; then
-            sed \
-                -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
-                "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
-        else
-            sed \
-                -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
-                "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
-        fi
-    done
+    cp "$TEMPLATE_DIR_RESOLVED/ensemble.sh" "$STAGED_ENSEMBLE_DIR/ensemble.sh"
+    cp "$TEMPLATE_DIR_RESOLVED/ensemble.cmd" "$STAGED_ENSEMBLE_DIR/ensemble.cmd"
 
-    find "$STAGED_ENSEMBLE_DIR" -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} +
+    sed \
+        -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
+        "$TEMPLATE_DIR_RESOLVED/basebox-version.sh" > "$STAGED_BASEBOX_DIR/ensemble.sh"
+
+    sed \
+        -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
+        "$TEMPLATE_DIR_RESOLVED/basebox-version.cmd" > "$STAGED_BASEBOX_DIR/ensemble.cmd"
+
+    printf '%s\n' "$BASEBOX_VERSION" > "$STAGED_ENSEMBLE_DIR/basebox/version.txt"
+
+    chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh" "$STAGED_BASEBOX_DIR/ensemble.sh"
 }
 
 validate_basebox_binaries() {
@@ -292,9 +295,14 @@ check_no_absolute_path_leaks() {
     local -a generated_files=()
 
     generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.conf")
+    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox/version.txt")
 
-    for file in "${LAUNCHERS[@]}"; do
+    for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
+    done
+
+    for file in "${VERSION_LAUNCHERS[@]}"; do
+        generated_files+=("$STAGED_BASEBOX_DIR/$file")
     done
 
     for file in "${generated_files[@]}"; do
