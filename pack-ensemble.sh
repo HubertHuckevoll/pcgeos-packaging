@@ -11,8 +11,13 @@ fi
 
 source "$CONFIG_FILE"
 
-BUILD_VARIANTS=(
+BUILD_VARIANTS=()
+
+REQUIRED_VARIANTS=(
     "regular|$GEOS_ZIP_URL|$OUTPUT_DIR"
+)
+
+OPTIONAL_VARIANTS=(
     "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/german"
 )
 
@@ -273,6 +278,23 @@ resolve_basebox_console_arg() {
     esac
 }
 
+resolve_build_variants() {
+    progress 'resolve_build_variants'
+
+    BUILD_VARIANTS=("${REQUIRED_VARIANTS[@]}")
+
+    case "${BUILD_OPTIONAL_VARIANTS,,}" in
+        yes|true|1)
+            BUILD_VARIANTS+=("${OPTIONAL_VARIANTS[@]}")
+            ;;
+        no|false|0)
+            ;;
+        *)
+            die "Invalid BUILD_OPTIONAL_VARIANTS '$BUILD_OPTIONAL_VARIANTS' (expected: yes/no/true/false/1/0)"
+            ;;
+    esac
+}
+
 cleanup_staged_ensemble_tree() {
     progress 'cleanup_staged_ensemble_tree'
     case "${DELETE_STAGED_ENSEMBLE_DIRS,,}" in
@@ -410,6 +432,7 @@ main() {
     check_required_tools
     resolve_template_dir
     resolve_basebox_console_arg
+    resolve_build_variants
 
     for variant_spec in "${BUILD_VARIANTS[@]}"; do
         IFS='|' read -r variant_key geos_zip_url variant_output_dir <<< "$variant_spec"
