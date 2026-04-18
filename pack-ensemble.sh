@@ -14,7 +14,7 @@ source "$CONFIG_FILE"
 BUILD_VARIANTS=()
 
 REQUIRED_VARIANTS=(
-    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR"
+    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/english"
 )
 
 OPTIONAL_VARIANTS=(
