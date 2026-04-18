@@ -26,11 +26,6 @@ TOP_LEVEL_LAUNCHERS=(
     ensemble.cmd
 )
 
-VERSION_LAUNCHERS=(
-    ensemble.sh
-    ensemble.cmd
-)
-
 EXPECTED_BASEBOX_BINARIES=(
     binl64/basebox
     binmac/basebox
@@ -51,7 +46,6 @@ STAGED_ENSEMBLE_DIR=""
 STAGED_BASEBOX_DIR=""
 OUTPUT_ZIP_PATH=""
 VARIANT_OUTPUT_DIR=""
-LOADER_DIR_DOS=""
 BASEBOX_CONSOLE_ARG_WIN=""
 BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
 BUILT_ARCHIVES=()
@@ -133,13 +127,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/basebox-version.sh" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf and unified launcher templates.'
+    die 'Could not find templates directory with basebox.conf and ensemble launcher templates.'
 }
 
 init_workspace() {
@@ -229,33 +223,11 @@ stage_basebox_tree() {
     shopt -u nullglob
 }
 
-locate_loader_dir() {
-    progress 'locate_loader_dir'
-    local loader_path
-    local loader_parent_abs
-    local loader_parent_rel
-
-    loader_path="$(find "$STAGED_ENSEMBLE_DIR" -type f -iname 'loader.exe' | sort | awk 'NR==1 { print; exit }')"
-    [[ -n "$loader_path" ]] || die 'loader.exe not found in staged ensemble tree.'
-
-    loader_parent_abs="$(dirname "$loader_path")"
-    if [[ "$loader_parent_abs" == "$STAGED_ENSEMBLE_DIR" ]]; then
-        LOADER_DIR_DOS='ensemble'
-        return
-    fi
-
-    loader_parent_rel="${loader_parent_abs#"$STAGED_ENSEMBLE_DIR"/}"
-
-    # basebox.conf [autoexec] uses DOS-style separators.
-    LOADER_DIR_DOS="ensemble\\$(printf '%s' "$loader_parent_rel" | sed 's#/#\\\\#g')"
-}
-
 generate_basebox_conf() {
     progress 'generate_basebox_conf'
     # Mount the parent directory so DOS C: contains the ensemble folder.
     sed \
         -e 's|{{HOST_PATH}}|..|g' \
-        -e "s|{{LOADER_DIR}}|$LOADER_DIR_DOS|g" \
         "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_ENSEMBLE_DIR/basebox.conf"
 }
 
@@ -325,21 +297,15 @@ install_launchers() {
 
     sed \
         -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+        -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
         "$TEMPLATE_DIR_RESOLVED/ensemble.sh" > "$STAGED_ENSEMBLE_DIR/ensemble.sh"
 
     sed \
         -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+        -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
         "$TEMPLATE_DIR_RESOLVED/ensemble.cmd" > "$STAGED_ENSEMBLE_DIR/ensemble.cmd"
 
-    sed \
-        -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
-        "$TEMPLATE_DIR_RESOLVED/basebox-version.sh" > "$STAGED_BASEBOX_DIR/ensemble.sh"
-
-    sed \
-        -e "s|{{BASEBOX_CONSOLE_ARG_WIN}}|$escaped_console_arg_win|g" \
-        "$TEMPLATE_DIR_RESOLVED/basebox-version.cmd" > "$STAGED_BASEBOX_DIR/ensemble.cmd"
-
-    chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh" "$STAGED_BASEBOX_DIR/ensemble.sh"
+    chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh"
 }
 
 validate_basebox_binaries() {
@@ -362,10 +328,6 @@ check_no_absolute_path_leaks() {
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
-    done
-
-    for file in "${VERSION_LAUNCHERS[@]}"; do
-        generated_files+=("$STAGED_BASEBOX_DIR/$file")
     done
 
     for file in "${generated_files[@]}"; do
@@ -410,7 +372,6 @@ build_variant() {
     prepare_output_paths "$variant_output_dir"
     stage_ensemble_tree
     stage_basebox_tree
-    locate_loader_dir
     generate_basebox_conf
     install_launchers
     validate_basebox_binaries
