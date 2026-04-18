@@ -127,13 +127,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf and ensemble launcher templates.'
+    die 'Could not find templates directory with basebox.conf, launcher templates, and update.txt.'
 }
 
 init_workspace() {
@@ -319,6 +319,11 @@ validate_basebox_binaries() {
     done
 }
 
+stage_update_marker() {
+    progress 'stage_update_marker'
+    cp "$TEMPLATE_DIR_RESOLVED/update.txt" "$STAGED_ENSEMBLE_DIR/update.txt"
+}
+
 check_no_absolute_path_leaks() {
     progress 'check_no_absolute_path_leaks'
     local file
@@ -376,6 +381,7 @@ build_variant() {
     install_launchers
     validate_basebox_binaries
     check_no_absolute_path_leaks
+    stage_update_marker
     build_archive
     verify_zip_layout
     cleanup_staged_ensemble_tree
