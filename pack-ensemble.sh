@@ -47,7 +47,7 @@ STAGED_BASEBOX_DIR=""
 OUTPUT_ZIP_PATH=""
 VARIANT_OUTPUT_DIR=""
 BASEBOX_CONSOLE_ARG_WIN=""
-BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
+BASEBOX_CONSOLE_MODE_UNIX=""
 BUILT_ARCHIVES=()
 
 progress() {
@@ -236,16 +236,16 @@ resolve_basebox_console_arg() {
     case "${BASEBOX_CONSOLE_MODE,,}" in
         show)
             BASEBOX_CONSOLE_ARG_WIN=""
-            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=""
+            BASEBOX_CONSOLE_MODE_UNIX="show"
             ;;
         hide)
             BASEBOX_CONSOLE_ARG_WIN="-noconsole"
-            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=">/dev/null 2>&1 &"
+            BASEBOX_CONSOLE_MODE_UNIX="hide"
             ;;
         *)
             printf "Warning: Invalid BASEBOX_CONSOLE_MODE '%s'; falling back to 'hide' (expected: show or hide)\n" "$BASEBOX_CONSOLE_MODE" >&2
             BASEBOX_CONSOLE_ARG_WIN="-noconsole"
-            BASEBOX_CONSOLE_ARG_UNIX_SUFFIX=">/dev/null 2>&1 &"
+            BASEBOX_CONSOLE_MODE_UNIX="hide"
             ;;
     esac
 }
@@ -289,15 +289,15 @@ install_launchers() {
     progress 'install_launchers'
     local escaped_basebox_version
     local escaped_console_arg_win
-    local escaped_console_arg_unix_suffix
+    local escaped_console_mode_unix
 
     escaped_basebox_version="$(escape_sed_replacement "$BASEBOX_VERSION")"
     escaped_console_arg_win="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_WIN")"
-    escaped_console_arg_unix_suffix="$(escape_sed_replacement "$BASEBOX_CONSOLE_ARG_UNIX_SUFFIX")"
+    escaped_console_mode_unix="$(escape_sed_replacement "$BASEBOX_CONSOLE_MODE_UNIX")"
 
     sed \
         -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
-        -e "s|{{BASEBOX_CONSOLE_ARG_UNIX_SUFFIX}}|$escaped_console_arg_unix_suffix|g" \
+        -e "s|{{BASEBOX_CONSOLE_MODE_UNIX}}|$escaped_console_mode_unix|g" \
         "$TEMPLATE_DIR_RESOLVED/ensemble.sh" > "$STAGED_ENSEMBLE_DIR/ensemble.sh"
 
     sed \
