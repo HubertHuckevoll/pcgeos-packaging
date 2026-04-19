@@ -3,7 +3,9 @@ set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ENSEMBLE_DIR="$SCRIPT_DIR"
-USER_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.conf"
+BASE_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.conf"
+LAUNCH_TEMPLATE_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.launch.templ.conf"
+LAUNCH_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.launch.conf"
 BASEBOX_VERSION="${BASEBOX_VERSION:-{{BASEBOX_VERSION}}}"
 BASEBOX_RAISE_WINDOW="${BASEBOX_RAISE_WINDOW:-auto}"
 LOG_FILE="${ENSEMBLE_DIR}/ensemble.log"
@@ -20,6 +22,59 @@ write_start_log() {
     else
         printf '[%s] start: %s\n' "$LOG_TIMESTAMP" "$0" > "$LOG_FILE"
     fi
+}
+
+escape_sed_replacement() {
+    printf '%s' "$1" | sed 's/[\\|&]/\\&/g'
+}
+
+generate_runtime_config() {
+    LAUNCH_DIR_NAME="${ENSEMBLE_DIR##*/}"
+    TEMP_CONFIG_FILE="${LAUNCH_CONFIG_FILE}.tmp.$$"
+
+    if [ -z "$LAUNCH_DIR_NAME" ]; then
+        log_line "error: could not resolve launcher directory name from $ENSEMBLE_DIR"
+        printf 'Error: Could not resolve launcher directory name from %s\n' "$ENSEMBLE_DIR" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$LAUNCH_TEMPLATE_CONFIG_FILE" ]; then
+        log_line "error: missing launch template config $LAUNCH_TEMPLATE_CONFIG_FILE"
+        printf 'Error: Missing launch template config at %s\n' "$LAUNCH_TEMPLATE_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    if ! grep -F "{{LAUNCH_DIR_NAME}}" "$LAUNCH_TEMPLATE_CONFIG_FILE" >/dev/null 2>&1; then
+        log_line "error: placeholder {{LAUNCH_DIR_NAME}} not found in launch template $LAUNCH_TEMPLATE_CONFIG_FILE"
+        printf 'Error: Missing {{LAUNCH_DIR_NAME}} placeholder in launch template %s\n' "$LAUNCH_TEMPLATE_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    ESCAPED_LAUNCH_DIR_NAME="$(escape_sed_replacement "$LAUNCH_DIR_NAME")"
+
+    if ! sed -e "s|{{LAUNCH_DIR_NAME}}|$ESCAPED_LAUNCH_DIR_NAME|g" \
+        "$LAUNCH_TEMPLATE_CONFIG_FILE" > "$TEMP_CONFIG_FILE"; then
+        rm -f "$TEMP_CONFIG_FILE"
+        log_line "error: failed to generate launch config $LAUNCH_CONFIG_FILE from template $LAUNCH_TEMPLATE_CONFIG_FILE"
+        printf 'Error: Could not generate launch config at %s\n' "$LAUNCH_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    if grep -F "{{LAUNCH_DIR_NAME}}" "$TEMP_CONFIG_FILE" >/dev/null 2>&1; then
+        rm -f "$TEMP_CONFIG_FILE"
+        log_line "error: unresolved placeholder remained in generated config $TEMP_CONFIG_FILE"
+        printf 'Error: Generated launch config still contains {{LAUNCH_DIR_NAME}} in %s\n' "$LAUNCH_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    if ! mv "$TEMP_CONFIG_FILE" "$LAUNCH_CONFIG_FILE"; then
+        rm -f "$TEMP_CONFIG_FILE"
+        log_line "error: failed to move generated launch config to $LAUNCH_CONFIG_FILE"
+        printf 'Error: Could not write launch config at %s\n' "$LAUNCH_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    log_line "config: generated $LAUNCH_CONFIG_FILE from template $LAUNCH_TEMPLATE_CONFIG_FILE (launch dir: $LAUNCH_DIR_NAME)"
 }
 
 focus_basebox_window() {
@@ -85,7 +140,7 @@ launch_basebox_background() {
 }
 
 start_basebox_detached() {
-    set -- -noprimaryconf -nolocalconf -conf "$USER_CONFIG_FILE" "$@"
+    set -- -noprimaryconf -nolocalconf -conf "$BASE_CONFIG_FILE" -conf "$LAUNCH_CONFIG_FILE" "$@"
 
     if command -v systemd-run >/dev/null 2>&1; then
         BASEBOX_SYSTEMD_UNIT="ensemble-basebox-$$-$(date +%s)"
@@ -155,6 +210,14 @@ main() {
 
     write_start_log "$@"
     log_line "basebox: $BASEBOX_EXEC"
+
+    if [ ! -f "$BASE_CONFIG_FILE" ]; then
+        log_line "error: missing static config $BASE_CONFIG_FILE"
+        printf 'Error: Missing static config at %s\n' "$BASE_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    generate_runtime_config
 
     if [ ! -x "$BASEBOX_EXEC" ]; then
         log_line "error: missing executable $BASEBOX_EXEC"

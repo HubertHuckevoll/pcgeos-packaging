@@ -125,13 +125,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf, launcher templates, and update.txt.'
+    die 'Could not find templates directory with basebox.conf, basebox.launch.templ.conf, launcher templates, and update.txt.'
 }
 
 init_workspace() {
@@ -221,12 +221,14 @@ stage_basebox_tree() {
     shopt -u nullglob
 }
 
-generate_basebox_conf() {
-    progress 'generate_basebox_conf'
-    # Mount the parent directory so DOS C: contains the ensemble folder.
+stage_basebox_configs() {
+    progress 'stage_basebox_configs'
+    cp "$TEMPLATE_DIR_RESOLVED/basebox.conf" "$STAGED_ENSEMBLE_DIR/basebox.conf"
+
+    # Mount the parent directory so DOS C: contains the launcher folder.
     sed \
         -e 's|{{HOST_PATH}}|..|g' \
-        "$TEMPLATE_DIR_RESOLVED/basebox.conf" > "$STAGED_ENSEMBLE_DIR/basebox.conf"
+        "$TEMPLATE_DIR_RESOLVED/basebox.launch.templ.conf" > "$STAGED_ENSEMBLE_DIR/basebox.launch.templ.conf"
 }
 
 resolve_build_variants() {
@@ -303,6 +305,7 @@ check_no_absolute_path_leaks() {
     local -a generated_files=()
 
     generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.conf")
+    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.launch.templ.conf")
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
@@ -350,7 +353,7 @@ build_variant() {
     prepare_output_paths "$variant_output_dir"
     stage_ensemble_tree
     stage_basebox_tree
-    generate_basebox_conf
+    stage_basebox_configs
     install_launchers
     validate_basebox_binaries
     check_no_absolute_path_leaks
