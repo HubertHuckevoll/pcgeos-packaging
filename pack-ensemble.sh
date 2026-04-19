@@ -23,7 +23,7 @@ OPTIONAL_VARIANTS=(
 
 TOP_LEVEL_LAUNCHERS=(
     ensemble.sh
-    ensemble.cmd
+    ensemble.ps1
 )
 
 EXPECTED_BASEBOX_BINARIES=(
@@ -125,7 +125,7 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.ps1" && -f "$candidate/update.txt" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
@@ -268,17 +268,16 @@ escape_sed_replacement() {
 
 install_launchers() {
     progress 'install_launchers'
+    local launcher
     local escaped_basebox_version
 
     escaped_basebox_version="$(escape_sed_replacement "$BASEBOX_VERSION")"
 
-    sed \
-        -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
-        "$TEMPLATE_DIR_RESOLVED/ensemble.sh" > "$STAGED_ENSEMBLE_DIR/ensemble.sh"
-
-    sed \
-        -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
-        "$TEMPLATE_DIR_RESOLVED/ensemble.cmd" > "$STAGED_ENSEMBLE_DIR/ensemble.cmd"
+    for launcher in "${TOP_LEVEL_LAUNCHERS[@]}"; do
+        sed \
+            -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+            "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
+    done
 
     chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh"
 }
