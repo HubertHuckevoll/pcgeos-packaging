@@ -14,11 +14,11 @@ source "$CONFIG_FILE"
 BUILD_VARIANTS=()
 
 REQUIRED_VARIANTS=(
-    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/english"
+    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/english|$ENSEMBLE_PACKAGE_VERSION|e"
 )
 
 OPTIONAL_VARIANTS=(
-    "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/german"
+    "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/german|$ENSEMBLE_PACKAGE_VERSION|d"
 )
 
 TOP_LEVEL_LAUNCHERS=(
@@ -45,6 +45,7 @@ BASEBOX_EXTRACT_DIR=""
 STAGED_ENSEMBLE_DIR=""
 STAGED_BASEBOX_DIR=""
 OUTPUT_ZIP_PATH=""
+OUTPUT_NAME=""
 VARIANT_OUTPUT_DIR=""
 BUILT_ARCHIVES=()
 
@@ -189,10 +190,13 @@ extract_archives() {
 prepare_output_paths() {
     progress "prepare_output_paths: $1"
     local variant_output_dir="$1"
+    local package_version="$2"
+    local language_suffix="$3"
 
     VARIANT_OUTPUT_DIR="$variant_output_dir"
     STAGED_ENSEMBLE_DIR="$VARIANT_OUTPUT_DIR/ensemble"
     STAGED_BASEBOX_DIR="$STAGED_ENSEMBLE_DIR/basebox/$BASEBOX_VERSION"
+    OUTPUT_NAME="ens${package_version}${language_suffix}.zip"
     OUTPUT_ZIP_PATH="$VARIANT_OUTPUT_DIR/$OUTPUT_NAME"
 }
 
@@ -345,11 +349,13 @@ build_variant() {
     local variant_key="$1"
     local geos_zip_url="$2"
     local variant_output_dir="$3"
+    local package_version="$4"
+    local language_suffix="$5"
 
     init_workspace "$variant_key"
     download_archives "$geos_zip_url"
     extract_archives
-    prepare_output_paths "$variant_output_dir"
+    prepare_output_paths "$variant_output_dir" "$package_version" "$language_suffix"
     stage_ensemble_tree
     stage_basebox_tree
     stage_basebox_configs
@@ -369,6 +375,8 @@ main() {
     local variant_key
     local geos_zip_url
     local variant_output_dir
+    local package_version
+    local language_suffix
 
     clean_output_dir
     check_required_tools
@@ -376,13 +384,15 @@ main() {
     resolve_build_variants
 
     for variant_spec in "${BUILD_VARIANTS[@]}"; do
-        IFS='|' read -r variant_key geos_zip_url variant_output_dir <<< "$variant_spec"
+        IFS='|' read -r variant_key geos_zip_url variant_output_dir package_version language_suffix <<< "$variant_spec"
 
         [[ -n "$variant_key" ]] || die "Invalid variant key in BUILD_VARIANTS entry: $variant_spec"
         [[ -n "$geos_zip_url" ]] || die "Missing GEOS URL for variant '$variant_key'"
         [[ -n "$variant_output_dir" ]] || die "Missing output directory for variant '$variant_key'"
+        [[ -n "$package_version" ]] || die "Missing package version for variant '$variant_key'"
+        [[ -n "$language_suffix" ]] || die "Missing language suffix for variant '$variant_key'"
 
-        build_variant "$variant_key" "$geos_zip_url" "$variant_output_dir"
+        build_variant "$variant_key" "$geos_zip_url" "$variant_output_dir" "$package_version" "$language_suffix"
     done
 
     [[ "${#BUILT_ARCHIVES[@]}" -gt 0 ]] || die 'No archives were built.'

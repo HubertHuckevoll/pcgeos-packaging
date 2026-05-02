@@ -46,4 +46,6 @@ docker run --rm \
   -v "$SCRIPT_DIR:/work" \
   "${DOCKER_ENV_ARGS[@]}" \
   "$IMAGE_TAG"
-printf '[docker-run] Done. Output expected at %s and %s\n' "$OUTPUT_DIR/$OUTPUT_NAME" "$OUTPUT_DIR/german/$OUTPUT_NAME"
+printf '[docker-run] Done. Output expected at %s and %s\n' \
+  "$OUTPUT_DIR/english/ens${ENSEMBLE_PACKAGE_VERSION}e.zip" \
+  "$OUTPUT_DIR/german/ens${ENSEMBLE_PACKAGE_VERSION}d.zip"
