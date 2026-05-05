@@ -24,7 +24,6 @@ OPTIONAL_VARIANTS=(
 TOP_LEVEL_LAUNCHERS=(
     ensemble.sh
     ensemble.cmd
-    ensemble.ps1
 )
 
 EXPECTED_BASEBOX_BINARIES=(
@@ -127,7 +126,7 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/ensemble.ps1" && -f "$candidate/update.txt" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
