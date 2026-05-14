@@ -302,68 +302,6 @@ stage_update_marker() {
     cp "$TEMPLATE_DIR_RESOLVED/update.txt" "$STAGED_ENSEMBLE_DIR/update.txt"
 }
 
-case_insensitive_glob_pattern() {
-    local input="$1"
-    local output=""
-    local char
-    local lower
-    local upper
-    local i
-
-    for ((i = 0; i < ${#input}; i++)); do
-        char="${input:i:1}"
-        lower="${char,,}"
-        upper="${char^^}"
-
-        if [[ "$lower" != "$upper" ]]; then
-            output+="[$lower$upper]"
-        else
-            output+="$char"
-        fi
-    done
-
-    printf '%s' "$output"
-}
-
-remove_ignored_ensemble_paths() {
-    progress "remove_ignored_ensemble_paths: $1"
-    local variant_key="$1"
-    local ignore_var="ENSEMBLE_IGNORE_PATTERNS_${variant_key^^}"
-    local declaration
-    local pattern
-    local expanded_pattern
-    local match
-    local IFS=
-    local shopt_state
-    local -a matches=()
-
-    if ! declaration="$(declare -p "$ignore_var" 2>/dev/null)"; then
-        die "Missing ignore pattern array for variant '$variant_key': $ignore_var"
-    fi
-
-    [[ "$declaration" == declare\ -a* ]] || die "Ignore pattern config must be an indexed array: $ignore_var"
-
-    local -n ignore_patterns="$ignore_var"
-
-    shopt_state="$(shopt -p nullglob dotglob globstar nocaseglob || true)"
-    shopt -s nullglob dotglob globstar nocaseglob
-    for pattern in "${ignore_patterns[@]}"; do
-        [[ -n "$pattern" ]] || die "Empty ignore pattern in $ignore_var"
-        [[ "$pattern" != /* ]] || die "Ignore pattern must be relative to ensemble/: $pattern"
-        [[ "$pattern" != *..* ]] || die "Ignore pattern must not contain '..': $pattern"
-        [[ "$pattern" != "." && "$pattern" != "./" ]] || die "Ignore pattern must not target the ensemble root: $pattern"
-
-        expanded_pattern="$(case_insensitive_glob_pattern "$pattern")"
-        matches=("$STAGED_ENSEMBLE_DIR"/$expanded_pattern)
-        for match in "${matches[@]}"; do
-            [[ "$match" == "$STAGED_ENSEMBLE_DIR/"* ]] || die "Ignore pattern escaped ensemble/: $pattern"
-            [[ "$match" != "$STAGED_ENSEMBLE_DIR/" ]] || die "Ignore pattern targets the ensemble root: $pattern"
-            rm -rf -- "$match"
-        done
-    done
-    eval "$shopt_state"
-}
-
 check_no_absolute_path_leaks() {
     progress 'check_no_absolute_path_leaks'
     local file
@@ -425,7 +363,6 @@ build_variant() {
     validate_basebox_binaries
     check_no_absolute_path_leaks
     stage_update_marker
-    remove_ignored_ensemble_paths "$variant_key"
     build_archive
     verify_zip_layout
     cleanup_staged_ensemble_tree
