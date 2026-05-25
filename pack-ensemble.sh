@@ -26,6 +26,10 @@ TOP_LEVEL_LAUNCHERS=(
     ensemble.cmd
 )
 
+TOP_LEVEL_HELPERS=(
+    ensemble-linux-deps.sh
+)
+
 EXPECTED_BASEBOX_BINARIES=(
     binl64/basebox
     binmac/basebox
@@ -126,13 +130,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/update.txt" ]]; then
+        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/ensemble-linux-deps.sh" && -f "$candidate/update.txt" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf, basebox.launch.templ.conf, launcher templates, and update.txt.'
+    die 'Could not find templates directory with basebox.conf, basebox.launch.templ.conf, launcher templates, ensemble-linux-deps.sh, and update.txt.'
 }
 
 init_workspace() {
@@ -286,6 +290,15 @@ install_launchers() {
     chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh"
 }
 
+install_helpers() {
+    progress 'install_helpers'
+    local helper
+
+    for helper in "${TOP_LEVEL_HELPERS[@]}"; do
+        cp "$TEMPLATE_DIR_RESOLVED/$helper" "$STAGED_ENSEMBLE_DIR/$helper"
+    done
+}
+
 validate_basebox_binaries() {
     progress 'validate_basebox_binaries'
     local rel
@@ -311,6 +324,10 @@ check_no_absolute_path_leaks() {
     generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.launch.templ.conf")
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
+        generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
+    done
+
+    for file in "${TOP_LEVEL_HELPERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
     done
 
@@ -360,6 +377,7 @@ build_variant() {
     stage_basebox_tree
     stage_basebox_configs
     install_launchers
+    install_helpers
     validate_basebox_binaries
     check_no_absolute_path_leaks
     stage_update_marker

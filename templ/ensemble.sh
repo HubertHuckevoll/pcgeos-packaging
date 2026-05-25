@@ -6,9 +6,11 @@ ENSEMBLE_DIR="$SCRIPT_DIR"
 BASE_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.conf"
 LAUNCH_TEMPLATE_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.launch.templ.conf"
 LAUNCH_CONFIG_FILE="${ENSEMBLE_DIR}/basebox.launch.conf"
+LINUX_DEPS_HELPER="${ENSEMBLE_DIR}/ensemble-linux-deps.sh"
 BASEBOX_VERSION="${BASEBOX_VERSION:-{{BASEBOX_VERSION}}}"
 BASEBOX_RAISE_WINDOW="${BASEBOX_RAISE_WINDOW:-auto}"
 LOG_FILE="${ENSEMBLE_DIR}/ensemble.log"
+LINUX_DEPS_HELPER_LOADED="0"
 
 log_line() {
     printf '%s\n' "$1" >> "$LOG_FILE"
@@ -26,6 +28,21 @@ write_start_log() {
 
 escape_sed_replacement() {
     printf '%s' "$1" | sed 's/[\\|&]/\\&/g'
+}
+
+load_linux_deps_helper() {
+    if [ -f "$LINUX_DEPS_HELPER" ]; then
+        . "$LINUX_DEPS_HELPER"
+        LINUX_DEPS_HELPER_LOADED="1"
+    else
+        log_line "deps: skipped Linux dependency check because helper is missing: $LINUX_DEPS_HELPER"
+    fi
+}
+
+run_linux_runtime_deps_check() {
+    if [ "$LINUX_DEPS_HELPER_LOADED" = "1" ] && command -v check_linux_runtime_deps >/dev/null 2>&1; then
+        check_linux_runtime_deps
+    fi
 }
 
 generate_runtime_config() {
@@ -210,6 +227,7 @@ main() {
 
     write_start_log "$@"
     log_line "basebox: $BASEBOX_EXEC"
+    load_linux_deps_helper
 
     if [ ! -f "$BASE_CONFIG_FILE" ]; then
         log_line "error: missing static config $BASE_CONFIG_FILE"
@@ -224,6 +242,8 @@ main() {
         printf 'Error: Expected Basebox executable not found at %s\n' "$BASEBOX_EXEC" >&2
         exit 1
     fi
+
+    run_linux_runtime_deps_check
 
     start_basebox_detached "$@"
     log_line "launch: request submitted"
