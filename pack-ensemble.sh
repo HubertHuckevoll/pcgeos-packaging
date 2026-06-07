@@ -13,29 +13,59 @@ source "$CONFIG_FILE"
 
 BUILD_VARIANTS=()
 
+ENSEMBLE_DIR_NAME="ENSEMBLE"
+BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME="ENSEMBLE"
+BASEBOX_DIR_NAME="BASEBOX"
+TEMPLATE_DIR_NAME="templ"
+APP_TEMPLATE_DIR="/app/templ"
+DOWNLOAD_DIR_NAME="downloads"
+EXTRACT_DIR_NAME="extracted"
+GEOS_EXTRACT_DIR_NAME="geos"
+BASEBOX_EXTRACT_DIR_NAME="basebox"
+GEOS_ZIP_FILE_NAME="geos.zip"
+BASEBOX_ZIP_FILE_NAME="basebox.zip"
+REGULAR_OUTPUT_DIR_NAME="english"
+GERMAN_OUTPUT_DIR_NAME="german"
+OUTPUT_ARCHIVE_PREFIX="ens"
+OUTPUT_ARCHIVE_SUFFIX=".zip"
+HOST_PATH_PLACEHOLDER="{{HOST_PATH}}"
+BASEBOX_BUILD_PLACEHOLDER="{{BASEBOX_BUILD}}"
+WINDOWS_BASEBOX_EXE_PLACEHOLDER="{{WINDOWS_BASEBOX_EXE}}"
+WINDOWS_BASEBOX_EXE_FILE_NAME="basebox.exe"
+
+GEOS_ARCHIVE_ENSEMBLE_DIR_NAMES=(
+    ensemble
+    ENSEMBLE
+)
+
+BASEBOX_RUNTIME_DIRS=(
+    binl64
+    binrpi64
+    binnt64
+)
+
+BASEBOX_CONFIG_FILE_NAME="basebox.conf"
+BASEBOX_LAUNCH_TEMPLATE_FILE_NAME="basebox.launch.templ.conf"
+UPDATE_MARKER_FILE_NAME="update.txt"
+LINUX_DEPS_HELPER_FILE_NAME="ensemble-linux-deps.sh"
+LINUX_LAUNCHER_FILE_NAME="ensemble.sh"
+WINDOWS_LAUNCHER_FILE_NAME="ensemble.cmd"
+
 REQUIRED_VARIANTS=(
-    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/english|$ENSEMBLE_PACKAGE_VERSION|e"
+    "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/$REGULAR_OUTPUT_DIR_NAME|$ENSEMBLE_PACKAGE_VERSION|e"
 )
 
 OPTIONAL_VARIANTS=(
-    "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/german|$ENSEMBLE_PACKAGE_VERSION|d"
+    "german|$GEOS_GERMAN_ZIP_URL|$OUTPUT_DIR/$GERMAN_OUTPUT_DIR_NAME|$ENSEMBLE_PACKAGE_VERSION|d"
 )
 
 TOP_LEVEL_LAUNCHERS=(
-    ensemble.sh
-    ensemble.cmd
+    "$LINUX_LAUNCHER_FILE_NAME"
+    "$WINDOWS_LAUNCHER_FILE_NAME"
 )
 
 TOP_LEVEL_HELPERS=(
-    ensemble-linux-deps.sh
-)
-
-EXPECTED_BASEBOX_BINARIES=(
-    binl64/basebox
-    binmac/basebox
-    binrpi64/basebox
-    binnt/basebox.exe
-    binnt64/basebox.exe
+    "$LINUX_DEPS_HELPER_FILE_NAME"
 )
 
 DOWNLOADER=""
@@ -46,8 +76,13 @@ GEOS_ZIP_PATH=""
 BASEBOX_ZIP_PATH=""
 GEOS_EXTRACT_DIR=""
 BASEBOX_EXTRACT_DIR=""
+GEOS_ARCHIVE_ENSEMBLE_DIR=""
+BASEBOX_ARCHIVE_ENSEMBLE_DIR=""
+BASEBOX_ARCHIVE_ROOT_DIR=""
+DETECTED_BASEBOX_BUILD_NAME=""
 STAGED_ENSEMBLE_DIR=""
-STAGED_BASEBOX_DIR=""
+STAGED_BASEBOX_ROOT_DIR=""
+STAGED_BASEBOX_BUILD_DIR=""
 OUTPUT_ZIP_PATH=""
 OUTPUT_NAME=""
 VARIANT_OUTPUT_DIR=""
@@ -123,20 +158,20 @@ resolve_template_dir() {
     fi
 
     candidates+=(
-        "$SCRIPT_DIR/templ"
-        "$SCRIPT_DIR/../templ"
-        "$PWD/templ"
-        "/app/templ"
+        "$SCRIPT_DIR/$TEMPLATE_DIR_NAME"
+        "$SCRIPT_DIR/../$TEMPLATE_DIR_NAME"
+        "$PWD/$TEMPLATE_DIR_NAME"
+        "$APP_TEMPLATE_DIR"
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/basebox.conf" && -f "$candidate/basebox.launch.templ.conf" && -f "$candidate/ensemble.sh" && -f "$candidate/ensemble.cmd" && -f "$candidate/ensemble-linux-deps.sh" && -f "$candidate/update.txt" ]]; then
+        if [[ -f "$candidate/$BASEBOX_CONFIG_FILE_NAME" && -f "$candidate/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" && -f "$candidate/$LINUX_LAUNCHER_FILE_NAME" && -f "$candidate/$WINDOWS_LAUNCHER_FILE_NAME" && -f "$candidate/$LINUX_DEPS_HELPER_FILE_NAME" && -f "$candidate/$UPDATE_MARKER_FILE_NAME" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die 'Could not find templates directory with basebox.conf, basebox.launch.templ.conf, launcher templates, ensemble-linux-deps.sh, and update.txt.'
+    die "Could not find templates directory with $BASEBOX_CONFIG_FILE_NAME, $BASEBOX_LAUNCH_TEMPLATE_FILE_NAME, launcher templates, $LINUX_DEPS_HELPER_FILE_NAME, and $UPDATE_MARKER_FILE_NAME."
 }
 
 init_workspace() {
@@ -151,10 +186,17 @@ init_workspace() {
     TMP_ROOT="$TMP_WORK_ROOT/$variant_key"
     rm -rf "$TMP_ROOT"
 
-    GEOS_ZIP_PATH="$TMP_ROOT/downloads/geos.zip"
-    BASEBOX_ZIP_PATH="$TMP_ROOT/downloads/basebox.zip"
-    GEOS_EXTRACT_DIR="$TMP_ROOT/extracted/geos"
-    BASEBOX_EXTRACT_DIR="$TMP_ROOT/extracted/basebox"
+    GEOS_ZIP_PATH="$TMP_ROOT/$DOWNLOAD_DIR_NAME/$GEOS_ZIP_FILE_NAME"
+    BASEBOX_ZIP_PATH="$TMP_ROOT/$DOWNLOAD_DIR_NAME/$BASEBOX_ZIP_FILE_NAME"
+    GEOS_EXTRACT_DIR="$TMP_ROOT/$EXTRACT_DIR_NAME/$GEOS_EXTRACT_DIR_NAME"
+    BASEBOX_EXTRACT_DIR="$TMP_ROOT/$EXTRACT_DIR_NAME/$BASEBOX_EXTRACT_DIR_NAME"
+    GEOS_ARCHIVE_ENSEMBLE_DIR=""
+    BASEBOX_ARCHIVE_ENSEMBLE_DIR=""
+    BASEBOX_ARCHIVE_ROOT_DIR=""
+    DETECTED_BASEBOX_BUILD_NAME=""
+    STAGED_ENSEMBLE_DIR=""
+    STAGED_BASEBOX_ROOT_DIR=""
+    STAGED_BASEBOX_BUILD_DIR=""
 
     mkdir -p \
         "$(dirname "$GEOS_ZIP_PATH")" \
@@ -182,13 +224,92 @@ download_archives() {
     download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
 }
 
+find_archive_dir() {
+    local extract_dir="$1"
+    local display_name="$2"
+    local match=""
+    local name
+
+    shift 2
+
+    for name in "$@"; do
+        if [[ -d "$extract_dir/$name" ]]; then
+            [[ -z "$match" ]] || die "$display_name archive contains multiple supported top-level directories."
+            match="$extract_dir/$name"
+        fi
+    done
+
+    [[ -n "$match" ]] || die "$display_name archive must contain a supported top-level directory."
+    printf '%s\n' "$match"
+}
+
+join_runtime_dirs() {
+    local joined=""
+    local rel
+
+    for rel in "${BASEBOX_RUNTIME_DIRS[@]}"; do
+        if [[ -n "$joined" ]]; then
+            joined="$joined, $rel"
+        else
+            joined="$rel"
+        fi
+    done
+
+    printf '%s\n' "$joined"
+}
+
+has_basebox_runtime_dirs() {
+    local candidate_dir="$1"
+    local rel
+
+    for rel in "${BASEBOX_RUNTIME_DIRS[@]}"; do
+        [[ -d "$candidate_dir/$rel" ]] || return 1
+    done
+
+    return 0
+}
+
+detect_basebox_build_dir() {
+    progress 'detect_basebox_build_dir'
+    local candidate
+    local candidate_name
+    local required_dirs
+    local -a matches=()
+
+    BASEBOX_ARCHIVE_ROOT_DIR="$BASEBOX_ARCHIVE_ENSEMBLE_DIR/$BASEBOX_DIR_NAME"
+    [[ -d "$BASEBOX_ARCHIVE_ROOT_DIR" ]] || die "Basebox archive must contain $BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME/$BASEBOX_DIR_NAME/<build-folder>."
+
+    shopt -s nullglob
+    for candidate in "$BASEBOX_ARCHIVE_ROOT_DIR"/*; do
+        [[ -d "$candidate" ]] || continue
+        if has_basebox_runtime_dirs "$candidate"; then
+            matches+=("$candidate")
+        fi
+    done
+    shopt -u nullglob
+
+    if [[ "${#matches[@]}" -eq 0 ]]; then
+        required_dirs="$(join_runtime_dirs)"
+        die "No Basebox build folder found under $BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME/$BASEBOX_DIR_NAME. Expected a folder containing directories: $required_dirs"
+    fi
+
+    if [[ "${#matches[@]}" -gt 1 ]]; then
+        die "Multiple Basebox build folders found under $BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME/$BASEBOX_DIR_NAME; archive layout is ambiguous."
+    fi
+
+    candidate_name="${matches[0]##*/}"
+    [[ -n "$candidate_name" ]] || die 'Could not resolve Basebox build folder name.'
+    DETECTED_BASEBOX_BUILD_NAME="$candidate_name"
+}
+
 extract_archives() {
     progress 'extract_archives'
     unzip -q "$GEOS_ZIP_PATH" -d "$GEOS_EXTRACT_DIR"
     unzip -q "$BASEBOX_ZIP_PATH" -d "$BASEBOX_EXTRACT_DIR"
 
-    [[ -d "$GEOS_EXTRACT_DIR/ensemble" ]] || die 'GEOS archive must contain top-level ensemble/ directory.'
-    [[ -d "$BASEBOX_EXTRACT_DIR/pcgeos-basebox" ]] || die 'Basebox archive must contain top-level pcgeos-basebox/ directory.'
+    GEOS_ARCHIVE_ENSEMBLE_DIR="$(find_archive_dir "$GEOS_EXTRACT_DIR" "GEOS" "${GEOS_ARCHIVE_ENSEMBLE_DIR_NAMES[@]}")"
+    BASEBOX_ARCHIVE_ENSEMBLE_DIR="$(find_archive_dir "$BASEBOX_EXTRACT_DIR" "Basebox" "$BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME")"
+    detect_basebox_build_dir
 }
 
 prepare_output_paths() {
@@ -198,9 +319,10 @@ prepare_output_paths() {
     local language_suffix="$3"
 
     VARIANT_OUTPUT_DIR="$variant_output_dir"
-    STAGED_ENSEMBLE_DIR="$VARIANT_OUTPUT_DIR/ensemble"
-    STAGED_BASEBOX_DIR="$STAGED_ENSEMBLE_DIR/basebox/$BASEBOX_VERSION"
-    OUTPUT_NAME="ens${package_version}${language_suffix}.zip"
+    STAGED_ENSEMBLE_DIR="$VARIANT_OUTPUT_DIR/$ENSEMBLE_DIR_NAME"
+    STAGED_BASEBOX_ROOT_DIR="$STAGED_ENSEMBLE_DIR/$BASEBOX_DIR_NAME"
+    STAGED_BASEBOX_BUILD_DIR="$STAGED_BASEBOX_ROOT_DIR/$DETECTED_BASEBOX_BUILD_NAME"
+    OUTPUT_NAME="$OUTPUT_ARCHIVE_PREFIX${package_version}${language_suffix}$OUTPUT_ARCHIVE_SUFFIX"
     OUTPUT_ZIP_PATH="$VARIANT_OUTPUT_DIR/$OUTPUT_NAME"
 }
 
@@ -210,33 +332,33 @@ stage_ensemble_tree() {
     rm -rf "$STAGED_ENSEMBLE_DIR"
     rm -f "$OUTPUT_ZIP_PATH"
 
-    mv "$GEOS_EXTRACT_DIR/ensemble" "$STAGED_ENSEMBLE_DIR"
+    mv "$GEOS_ARCHIVE_ENSEMBLE_DIR" "$STAGED_ENSEMBLE_DIR"
 }
 
 stage_basebox_tree() {
     progress 'stage_basebox_tree'
     local -a items=()
 
-    mkdir -p "$STAGED_BASEBOX_DIR"
+    mkdir -p "$STAGED_ENSEMBLE_DIR"
 
     shopt -s dotglob nullglob
-    items=("$BASEBOX_EXTRACT_DIR/pcgeos-basebox"/*)
+    items=("$BASEBOX_ARCHIVE_ENSEMBLE_DIR"/*)
     shopt -u dotglob
 
     [[ "${#items[@]}" -gt 0 ]] || die 'Basebox archive has no files to stage.'
 
-    mv "${items[@]}" "$STAGED_BASEBOX_DIR/"
+    mv "${items[@]}" "$STAGED_ENSEMBLE_DIR/"
     shopt -u nullglob
 }
 
 stage_basebox_configs() {
     progress 'stage_basebox_configs'
-    cp "$TEMPLATE_DIR_RESOLVED/basebox.conf" "$STAGED_ENSEMBLE_DIR/basebox.conf"
+    cp "$TEMPLATE_DIR_RESOLVED/$BASEBOX_CONFIG_FILE_NAME" "$STAGED_ENSEMBLE_DIR/$BASEBOX_CONFIG_FILE_NAME"
 
     # Mount the parent directory so DOS C: contains the launcher folder.
     sed \
-        -e 's|{{HOST_PATH}}|..|g' \
-        "$TEMPLATE_DIR_RESOLVED/basebox.launch.templ.conf" > "$STAGED_ENSEMBLE_DIR/basebox.launch.templ.conf"
+        -e "s|$HOST_PATH_PLACEHOLDER|..|g" \
+        "$TEMPLATE_DIR_RESOLVED/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" > "$STAGED_ENSEMBLE_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME"
 }
 
 resolve_build_variants() {
@@ -277,17 +399,20 @@ escape_sed_replacement() {
 install_launchers() {
     progress 'install_launchers'
     local launcher
-    local escaped_basebox_version
+    local escaped_basebox_build
+    local escaped_windows_basebox_exe
 
-    escaped_basebox_version="$(escape_sed_replacement "$BASEBOX_VERSION")"
+    escaped_basebox_build="$(escape_sed_replacement "$DETECTED_BASEBOX_BUILD_NAME")"
+    escaped_windows_basebox_exe="$(escape_sed_replacement "$WINDOWS_BASEBOX_EXE_FILE_NAME")"
 
     for launcher in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         sed \
-            -e "s|{{BASEBOX_VERSION}}|$escaped_basebox_version|g" \
+            -e "s|$BASEBOX_BUILD_PLACEHOLDER|$escaped_basebox_build|g" \
+            -e "s|$WINDOWS_BASEBOX_EXE_PLACEHOLDER|$escaped_windows_basebox_exe|g" \
             "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
     done
 
-    chmod +x "$STAGED_ENSEMBLE_DIR/ensemble.sh"
+    chmod +x "$STAGED_ENSEMBLE_DIR/$LINUX_LAUNCHER_FILE_NAME"
 }
 
 install_helpers() {
@@ -299,20 +424,9 @@ install_helpers() {
     done
 }
 
-validate_basebox_binaries() {
-    progress 'validate_basebox_binaries'
-    local rel
-    local expected
-
-    for rel in "${EXPECTED_BASEBOX_BINARIES[@]}"; do
-        expected="$STAGED_BASEBOX_DIR/$rel"
-        [[ -f "$expected" ]] || die "Missing expected Basebox binary: $expected"
-    done
-}
-
 stage_update_marker() {
     progress 'stage_update_marker'
-    cp "$TEMPLATE_DIR_RESOLVED/update.txt" "$STAGED_ENSEMBLE_DIR/update.txt"
+    cp "$TEMPLATE_DIR_RESOLVED/$UPDATE_MARKER_FILE_NAME" "$STAGED_ENSEMBLE_DIR/$UPDATE_MARKER_FILE_NAME"
 }
 
 check_no_absolute_path_leaks() {
@@ -320,8 +434,8 @@ check_no_absolute_path_leaks() {
     local file
     local -a generated_files=()
 
-    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.conf")
-    generated_files+=("$STAGED_ENSEMBLE_DIR/basebox.launch.templ.conf")
+    generated_files+=("$STAGED_ENSEMBLE_DIR/$BASEBOX_CONFIG_FILE_NAME")
+    generated_files+=("$STAGED_ENSEMBLE_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME")
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
@@ -342,14 +456,14 @@ build_archive() {
     progress 'build_archive'
     (
         cd "$VARIANT_OUTPUT_DIR"
-        zip -qr "$OUTPUT_NAME" ensemble
+        zip -qr "$OUTPUT_NAME" "$ENSEMBLE_DIR_NAME"
     )
 }
 
 verify_zip_layout() {
     progress 'verify_zip_layout'
-    unzip -Z1 "$OUTPUT_ZIP_PATH" | awk '$0 !~ /^ensemble\// { bad=1 } END { exit bad ? 1 : 0 }' \
-        || die 'ZIP layout invalid; expected top-level ensemble/.'
+    unzip -Z1 "$OUTPUT_ZIP_PATH" | awk -v root="$ENSEMBLE_DIR_NAME/" 'index($0, root) != 1 { bad=1 } END { exit bad ? 1 : 0 }' \
+        || die "ZIP layout invalid; expected top-level $ENSEMBLE_DIR_NAME/."
 }
 
 print_success() {
@@ -378,7 +492,6 @@ build_variant() {
     stage_basebox_configs
     install_launchers
     install_helpers
-    validate_basebox_binaries
     check_no_absolute_path_leaks
     stage_update_marker
     build_archive
