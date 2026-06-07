@@ -353,12 +353,14 @@ stage_basebox_tree() {
 
 stage_basebox_configs() {
     progress 'stage_basebox_configs'
+    mkdir -p "$STAGED_BASEBOX_ROOT_DIR"
+
     cp "$TEMPLATE_DIR_RESOLVED/$BASEBOX_CONFIG_FILE_NAME" "$STAGED_ENSEMBLE_DIR/$BASEBOX_CONFIG_FILE_NAME"
 
     # Mount the parent directory so DOS C: contains the launcher folder.
     sed \
         -e "s|$HOST_PATH_PLACEHOLDER|..|g" \
-        "$TEMPLATE_DIR_RESOLVED/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" > "$STAGED_ENSEMBLE_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME"
+        "$TEMPLATE_DIR_RESOLVED/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" > "$STAGED_BASEBOX_ROOT_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME"
 }
 
 resolve_build_variants() {
@@ -420,7 +422,7 @@ install_helpers() {
     local helper
 
     for helper in "${TOP_LEVEL_HELPERS[@]}"; do
-        cp "$TEMPLATE_DIR_RESOLVED/$helper" "$STAGED_ENSEMBLE_DIR/$helper"
+        cp "$TEMPLATE_DIR_RESOLVED/$helper" "$STAGED_BASEBOX_ROOT_DIR/$helper"
     done
 }
 
@@ -435,14 +437,14 @@ check_no_absolute_path_leaks() {
     local -a generated_files=()
 
     generated_files+=("$STAGED_ENSEMBLE_DIR/$BASEBOX_CONFIG_FILE_NAME")
-    generated_files+=("$STAGED_ENSEMBLE_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME")
+    generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME")
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
     done
 
     for file in "${TOP_LEVEL_HELPERS[@]}"; do
-        generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
+        generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$file")
     done
 
     for file in "${generated_files[@]}"; do
