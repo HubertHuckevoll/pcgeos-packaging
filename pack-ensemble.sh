@@ -174,35 +174,49 @@ resolve_template_dir() {
     die "Could not find templates directory with $BASEBOX_CONFIG_FILE_NAME, $BASEBOX_LAUNCH_TEMPLATE_FILE_NAME, launcher templates, $LINUX_DEPS_HELPER_FILE_NAME, and $UPDATE_MARKER_FILE_NAME."
 }
 
-init_workspace() {
-    progress "init_workspace: $1"
-    local variant_key="$1"
-
+init_work_root() {
     if [[ -z "$TMP_WORK_ROOT" ]]; then
         TMP_WORK_ROOT="$(mktemp -d)"
         trap cleanup EXIT
     fi
+}
+
+init_basebox_workspace() {
+    progress 'init_basebox_workspace'
+
+    init_work_root
+
+    BASEBOX_ZIP_PATH="$TMP_WORK_ROOT/shared/$DOWNLOAD_DIR_NAME/$BASEBOX_ZIP_FILE_NAME"
+    BASEBOX_EXTRACT_DIR="$TMP_WORK_ROOT/shared/$EXTRACT_DIR_NAME/$BASEBOX_EXTRACT_DIR_NAME"
+    BASEBOX_ARCHIVE_ENSEMBLE_DIR=""
+    BASEBOX_ARCHIVE_ROOT_DIR=""
+    DETECTED_BASEBOX_BUILD_NAME=""
+
+    rm -rf "$TMP_WORK_ROOT/shared"
+    mkdir -p \
+        "$(dirname "$BASEBOX_ZIP_PATH")" \
+        "$BASEBOX_EXTRACT_DIR"
+}
+
+init_variant_workspace() {
+    progress "init_variant_workspace: $1"
+    local variant_key="$1"
+
+    init_work_root
 
     TMP_ROOT="$TMP_WORK_ROOT/$variant_key"
     rm -rf "$TMP_ROOT"
 
     GEOS_ZIP_PATH="$TMP_ROOT/$DOWNLOAD_DIR_NAME/$GEOS_ZIP_FILE_NAME"
-    BASEBOX_ZIP_PATH="$TMP_ROOT/$DOWNLOAD_DIR_NAME/$BASEBOX_ZIP_FILE_NAME"
     GEOS_EXTRACT_DIR="$TMP_ROOT/$EXTRACT_DIR_NAME/$GEOS_EXTRACT_DIR_NAME"
-    BASEBOX_EXTRACT_DIR="$TMP_ROOT/$EXTRACT_DIR_NAME/$BASEBOX_EXTRACT_DIR_NAME"
     GEOS_ARCHIVE_ENSEMBLE_DIR=""
-    BASEBOX_ARCHIVE_ENSEMBLE_DIR=""
-    BASEBOX_ARCHIVE_ROOT_DIR=""
-    DETECTED_BASEBOX_BUILD_NAME=""
     STAGED_ENSEMBLE_DIR=""
     STAGED_BASEBOX_ROOT_DIR=""
     STAGED_BASEBOX_BUILD_DIR=""
 
     mkdir -p \
         "$(dirname "$GEOS_ZIP_PATH")" \
-        "$(dirname "$BASEBOX_ZIP_PATH")" \
-        "$GEOS_EXTRACT_DIR" \
-        "$BASEBOX_EXTRACT_DIR"
+        "$GEOS_EXTRACT_DIR"
 }
 
 download_file() {
@@ -211,17 +225,37 @@ download_file() {
     local destination="$2"
 
     if [[ "$DOWNLOADER" == "curl" ]]; then
-        curl -fsSL --retry 3 --retry-delay 1 -o "$destination" "$url"
+        curl -fL \
+            --retry 3 \
+            --retry-delay 1 \
+            --connect-timeout 20 \
+            --speed-limit 1024 \
+            --speed-time 60 \
+            --progress-bar \
+            -o "$destination" \
+            "$url"
     else
-        wget -q -O "$destination" "$url"
+        wget \
+            --tries=3 \
+            --timeout=20 \
+            --read-timeout=60 \
+            --progress=bar:force:noscroll \
+            -O "$destination" \
+            "$url"
     fi
 }
 
-download_archives() {
+download_basebox_archive() {
+    progress 'download_basebox_archive'
+
+    download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
+}
+
+download_geos_archive() {
+    progress 'download_geos_archive'
     local geos_zip_url="$1"
 
     download_file "$geos_zip_url" "$GEOS_ZIP_PATH"
-    download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
 }
 
 find_archive_dir() {
@@ -302,14 +336,21 @@ detect_basebox_build_dir() {
     DETECTED_BASEBOX_BUILD_NAME="$candidate_name"
 }
 
-extract_archives() {
-    progress 'extract_archives'
-    unzip -q "$GEOS_ZIP_PATH" -d "$GEOS_EXTRACT_DIR"
+extract_basebox_archive() {
+    progress 'extract_basebox_archive'
+
     unzip -q "$BASEBOX_ZIP_PATH" -d "$BASEBOX_EXTRACT_DIR"
 
-    GEOS_ARCHIVE_ENSEMBLE_DIR="$(find_archive_dir "$GEOS_EXTRACT_DIR" "GEOS" "${GEOS_ARCHIVE_ENSEMBLE_DIR_NAMES[@]}")"
     BASEBOX_ARCHIVE_ENSEMBLE_DIR="$(find_archive_dir "$BASEBOX_EXTRACT_DIR" "Basebox" "$BASEBOX_ARCHIVE_ENSEMBLE_DIR_NAME")"
     detect_basebox_build_dir
+}
+
+extract_geos_archive() {
+    progress 'extract_geos_archive'
+
+    unzip -q "$GEOS_ZIP_PATH" -d "$GEOS_EXTRACT_DIR"
+
+    GEOS_ARCHIVE_ENSEMBLE_DIR="$(find_archive_dir "$GEOS_EXTRACT_DIR" "GEOS" "${GEOS_ARCHIVE_ENSEMBLE_DIR_NAMES[@]}")"
 }
 
 prepare_output_paths() {
@@ -347,7 +388,7 @@ stage_basebox_tree() {
 
     [[ "${#items[@]}" -gt 0 ]] || die 'Basebox archive has no files to stage.'
 
-    mv "${items[@]}" "$STAGED_ENSEMBLE_DIR/"
+    cp -a "${items[@]}" "$STAGED_ENSEMBLE_DIR/"
     shopt -u nullglob
 }
 
@@ -485,9 +526,9 @@ build_variant() {
     local package_version="$4"
     local language_suffix="$5"
 
-    init_workspace "$variant_key"
-    download_archives "$geos_zip_url"
-    extract_archives
+    init_variant_workspace "$variant_key"
+    download_geos_archive "$geos_zip_url"
+    extract_geos_archive
     prepare_output_paths "$variant_output_dir" "$package_version" "$language_suffix"
     stage_ensemble_tree
     stage_basebox_tree
@@ -515,6 +556,9 @@ main() {
     check_required_tools
     resolve_template_dir
     resolve_build_variants
+    init_basebox_workspace
+    download_basebox_archive
+    extract_basebox_archive
 
     for variant_spec in "${BUILD_VARIANTS[@]}"; do
         IFS='|' read -r variant_key geos_zip_url variant_output_dir package_version language_suffix <<< "$variant_spec"
