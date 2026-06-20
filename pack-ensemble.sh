@@ -89,7 +89,6 @@ BASEBOX_ARCHIVE_ROOT_DIR=""
 DETECTED_BASEBOX_BUILD_NAME=""
 STAGED_ENSEMBLE_DIR=""
 STAGED_BASEBOX_ROOT_DIR=""
-STAGED_BASEBOX_BUILD_DIR=""
 OUTPUT_ZIP_PATH=""
 OUTPUT_NAME=""
 VARIANT_OUTPUT_DIR=""
@@ -144,15 +143,12 @@ check_required_tools() {
     select_downloader
 }
 
-clean_output_dir() {
-    progress 'clean_output_dir'
+validate_output_dir() {
+    progress 'validate_output_dir'
 
     if [[ -z "$OUTPUT_DIR" || "$OUTPUT_DIR" == "/" ]]; then
-        die "Refusing to clean unsafe OUTPUT_DIR value: '$OUTPUT_DIR'"
+        die "Refusing unsafe OUTPUT_DIR value: '$OUTPUT_DIR'"
     fi
-
-    rm -rf "$OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR"
 }
 
 resolve_template_dir() {
@@ -219,7 +215,6 @@ init_variant_workspace() {
     GEOS_ARCHIVE_ENSEMBLE_DIR=""
     STAGED_ENSEMBLE_DIR=""
     STAGED_BASEBOX_ROOT_DIR=""
-    STAGED_BASEBOX_BUILD_DIR=""
 
     mkdir -p \
         "$(dirname "$GEOS_ZIP_PATH")" \
@@ -369,7 +364,6 @@ prepare_output_paths() {
     VARIANT_OUTPUT_DIR="$variant_output_dir"
     STAGED_ENSEMBLE_DIR="$VARIANT_OUTPUT_DIR/$ENSEMBLE_DIR_NAME"
     STAGED_BASEBOX_ROOT_DIR="$STAGED_ENSEMBLE_DIR/$BASEBOX_DIR_NAME"
-    STAGED_BASEBOX_BUILD_DIR="$STAGED_BASEBOX_ROOT_DIR/$DETECTED_BASEBOX_BUILD_NAME"
     OUTPUT_NAME="$OUTPUT_ARCHIVE_PREFIX${package_version}${language_suffix}$OUTPUT_ARCHIVE_SUFFIX"
     OUTPUT_ZIP_PATH="$VARIANT_OUTPUT_DIR/$OUTPUT_NAME"
 }
@@ -569,7 +563,7 @@ main() {
     local package_version
     local language_suffix
 
-    clean_output_dir
+    validate_output_dir
     check_required_tools
     resolve_template_dir
     resolve_build_variants
