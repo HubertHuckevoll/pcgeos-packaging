@@ -457,7 +457,7 @@ build_archive() {
     progress 'build_archive'
     (
         cd "$VARIANT_OUTPUT_DIR"
-        zip -qr "$OUTPUT_NAME" "$ENSEMBLE_DIR_NAME"
+        zip -r -dc "$OUTPUT_NAME" "$ENSEMBLE_DIR_NAME"
     )
 }
 
