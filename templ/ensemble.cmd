@@ -1,99 +1,49 @@
 @echo off
 setlocal
+
 set "SCRIPT_DIR=%~dp0"
-if "%BASEBOX_BUILD%"=="" set "BASEBOX_BUILD={{BASEBOX_BUILD}}"
+set "UPDATE_MARKER=%SCRIPT_DIR%update.txt"
+set "RUN_LAUNCHER=%SCRIPT_DIR%BASEBOX\ensemble-run.cmd"
+set "LOG_FILE=%SCRIPT_DIR%ensemble.log"
 
-set "ARCH=%PROCESSOR_ARCHITECTURE%"
-if defined PROCESSOR_ARCHITEW6432 set "ARCH=%PROCESSOR_ARCHITEW6432%"
+if exist "%UPDATE_MARKER%" (
+    call :promote_pending_launcher "%SCRIPT_DIR%BASEBOX\ensemble-run.cmd"
+    if errorlevel 1 exit /b 1
 
-set "BASEBOX_BIN_DIR=binnt64"
-if /I "%ARCH%"=="AMD64" set "BASEBOX_BIN_DIR=binnt64"
-if /I "%ARCH%"=="IA64" set "BASEBOX_BIN_DIR=binnt64"
-if /I "%ARCH%"=="ARM64" set "BASEBOX_BIN_DIR=binnt64"
+    call :promote_pending_launcher "%SCRIPT_DIR%BASEBOX\ensemble-run.sh"
+    if errorlevel 1 exit /b 1
 
-for %%I in ("%SCRIPT_DIR%.") do set "ENSEMBLE_DIR=%%~fI"
-for %%I in ("%ENSEMBLE_DIR%") do set "LAUNCH_DIR_NAME=%%~nxI"
-set "BASEBOX_EXEC=%ENSEMBLE_DIR%\BASEBOX\%BASEBOX_BUILD%\%BASEBOX_BIN_DIR%\{{WINDOWS_BASEBOX_EXE}}"
-set "BASE_CONFIG_FILE=%ENSEMBLE_DIR%\basebox.conf"
-set "LAUNCH_TEMPLATE_CONFIG_FILE=%ENSEMBLE_DIR%\BASEBOX\basebox.launch.templ.conf"
-set "LAUNCH_CONFIG_FILE=%ENSEMBLE_DIR%\BASEBOX\basebox.launch.conf"
-set "LOG_FILE=%ENSEMBLE_DIR%\ensemble.log"
-> "%LOG_FILE%" echo [%DATE% %TIME%] start: %~nx0 %*
->> "%LOG_FILE%" echo basebox: "%BASEBOX_EXEC%"
+    del /q "%UPDATE_MARKER%" >nul 2>&1
+    if exist "%UPDATE_MARKER%" >> "%LOG_FILE%" echo update: failed to delete marker "%UPDATE_MARKER%"
+)
 
-if "%LAUNCH_DIR_NAME%"=="" (
-    >> "%LOG_FILE%" echo error: could not resolve launcher directory name from "%ENSEMBLE_DIR%"
-    echo Error: Could not resolve launcher directory name from "%ENSEMBLE_DIR%".
+if not exist "%RUN_LAUNCHER%" (
+    echo Error: Missing launcher at "%RUN_LAUNCHER%".
     exit /b 1
 )
 
-if not exist "%BASE_CONFIG_FILE%" (
-    >> "%LOG_FILE%" echo error: missing static config "%BASE_CONFIG_FILE%"
-    echo Error: Missing static config at "%BASE_CONFIG_FILE%".
-    exit /b 1
-)
+call "%RUN_LAUNCHER%" %*
+exit /b %ERRORLEVEL%
 
-if not exist "%LAUNCH_TEMPLATE_CONFIG_FILE%" (
-    >> "%LOG_FILE%" echo error: missing launch template config "%LAUNCH_TEMPLATE_CONFIG_FILE%"
-    echo Error: Missing launch template config at "%LAUNCH_TEMPLATE_CONFIG_FILE%".
-    exit /b 1
-)
+:promote_pending_launcher
+set "ACTIVE_LAUNCHER=%~1"
+set "PENDING_LAUNCHER=%ACTIVE_LAUNCHER%.update"
 
-findstr /C:"{{LAUNCH_DIR_NAME}}" "%LAUNCH_TEMPLATE_CONFIG_FILE%" >nul
-if errorlevel 1 (
-    >> "%LOG_FILE%" echo error: placeholder {{LAUNCH_DIR_NAME}} not found in launch template "%LAUNCH_TEMPLATE_CONFIG_FILE%"
-    echo Error: Missing {{LAUNCH_DIR_NAME}} placeholder in launch template "%LAUNCH_TEMPLATE_CONFIG_FILE%".
-    exit /b 1
-)
-
-set "TEMP_CONFIG_FILE=%LAUNCH_CONFIG_FILE%.tmp"
-setlocal EnableDelayedExpansion
-> "%TEMP_CONFIG_FILE%" (
-    for /f "usebackq delims=" %%L in ("%LAUNCH_TEMPLATE_CONFIG_FILE%") do (
-        set "LINE=%%L"
-        set "LINE=!LINE:{{LAUNCH_DIR_NAME}}=%LAUNCH_DIR_NAME%!"
-        echo(!LINE!
+if exist "%PENDING_LAUNCHER%" (
+    copy /Y "%PENDING_LAUNCHER%" "%ACTIVE_LAUNCHER%" >nul
+    if errorlevel 1 (
+        >> "%LOG_FILE%" echo update: failed to promote "%PENDING_LAUNCHER%" to "%ACTIVE_LAUNCHER%"
+        if not exist "%ACTIVE_LAUNCHER%" (
+            echo Error: Could not install launcher update and no launcher exists at "%ACTIVE_LAUNCHER%".
+            exit /b 1
+        )
+    ) else (
+        >> "%LOG_FILE%" echo update: promoted "%PENDING_LAUNCHER%" to "%ACTIVE_LAUNCHER%"
+        del /q "%PENDING_LAUNCHER%" >nul 2>&1
+        if exist "%PENDING_LAUNCHER%" >> "%LOG_FILE%" echo update: failed to delete pending launcher "%PENDING_LAUNCHER%"
     )
-)
-endlocal
-
-if not exist "%TEMP_CONFIG_FILE%" (
-    >> "%LOG_FILE%" echo error: failed to generate launch config "%LAUNCH_CONFIG_FILE%" from template "%LAUNCH_TEMPLATE_CONFIG_FILE%"
-    echo Error: Could not generate launch config at "%LAUNCH_CONFIG_FILE%".
-    exit /b 1
+) else (
+    >> "%LOG_FILE%" echo update: marker exists but pending launcher is missing: "%PENDING_LAUNCHER%"
 )
 
-findstr /C:"{{LAUNCH_DIR_NAME}}" "%TEMP_CONFIG_FILE%" >nul
-if not errorlevel 1 (
-    del /q "%TEMP_CONFIG_FILE%" >nul 2>&1
-    >> "%LOG_FILE%" echo error: unresolved placeholder remained in generated config "%TEMP_CONFIG_FILE%"
-    echo Error: Generated launch config still contains {{LAUNCH_DIR_NAME}} in "%LAUNCH_CONFIG_FILE%".
-    exit /b 1
-)
-
-move /Y "%TEMP_CONFIG_FILE%" "%LAUNCH_CONFIG_FILE%" >nul
-if errorlevel 1 (
-    del /q "%TEMP_CONFIG_FILE%" >nul 2>&1
-    >> "%LOG_FILE%" echo error: failed to write launch config "%LAUNCH_CONFIG_FILE%"
-    echo Error: Could not write launch config at "%LAUNCH_CONFIG_FILE%".
-    exit /b 1
-)
-
->> "%LOG_FILE%" echo config: generated "%LAUNCH_CONFIG_FILE%" from template "%LAUNCH_TEMPLATE_CONFIG_FILE%" (launch dir: "%LAUNCH_DIR_NAME%")
-
-if not exist "%BASEBOX_EXEC%" (
-    >> "%LOG_FILE%" echo error: missing executable "%BASEBOX_EXEC%"
-    echo Error: Expected Basebox executable not found at "%BASEBOX_EXEC%".
-    exit /b 1
-)
-
->> "%LOG_FILE%" echo launch: request submitted
-start "" /D "%ENSEMBLE_DIR%" "%BASEBOX_EXEC%" -noconsole -noprimaryconf -nolocalconf -conf "%BASE_CONFIG_FILE%" -conf "%LAUNCH_CONFIG_FILE%" %*
-if errorlevel 1 (
-    >> "%LOG_FILE%" echo error: failed to start basebox
-    echo Error: Could not start Basebox.
-    exit /b 1
-)
-
->> "%LOG_FILE%" echo launcher: exiting after detached launch
 exit /b 0

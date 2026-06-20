@@ -50,6 +50,8 @@ UPDATE_MARKER_FILE_NAME="update.txt"
 LINUX_DEPS_HELPER_FILE_NAME="ensemble-linux-deps.sh"
 LINUX_LAUNCHER_FILE_NAME="ensemble.sh"
 WINDOWS_LAUNCHER_FILE_NAME="ensemble.cmd"
+LINUX_RUN_LAUNCHER_FILE_NAME="ensemble-run.sh"
+WINDOWS_RUN_LAUNCHER_FILE_NAME="ensemble-run.cmd"
 
 REQUIRED_VARIANTS=(
     "regular|$GEOS_ZIP_URL|$OUTPUT_DIR/$REGULAR_OUTPUT_DIR_NAME|$ENSEMBLE_PACKAGE_VERSION|e"
@@ -62,6 +64,11 @@ OPTIONAL_VARIANTS=(
 TOP_LEVEL_LAUNCHERS=(
     "$LINUX_LAUNCHER_FILE_NAME"
     "$WINDOWS_LAUNCHER_FILE_NAME"
+)
+
+TOP_LEVEL_RUN_LAUNCHERS=(
+    "$LINUX_RUN_LAUNCHER_FILE_NAME"
+    "$WINDOWS_RUN_LAUNCHER_FILE_NAME"
 )
 
 TOP_LEVEL_HELPERS=(
@@ -165,13 +172,13 @@ resolve_template_dir() {
     )
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "$candidate/$BASEBOX_CONFIG_FILE_NAME" && -f "$candidate/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" && -f "$candidate/$LINUX_LAUNCHER_FILE_NAME" && -f "$candidate/$WINDOWS_LAUNCHER_FILE_NAME" && -f "$candidate/$LINUX_DEPS_HELPER_FILE_NAME" && -f "$candidate/$UPDATE_MARKER_FILE_NAME" ]]; then
+        if [[ -f "$candidate/$BASEBOX_CONFIG_FILE_NAME" && -f "$candidate/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME" && -f "$candidate/$LINUX_LAUNCHER_FILE_NAME" && -f "$candidate/$WINDOWS_LAUNCHER_FILE_NAME" && -f "$candidate/$LINUX_RUN_LAUNCHER_FILE_NAME" && -f "$candidate/$WINDOWS_RUN_LAUNCHER_FILE_NAME" && -f "$candidate/$LINUX_DEPS_HELPER_FILE_NAME" && -f "$candidate/$UPDATE_MARKER_FILE_NAME" ]]; then
             TEMPLATE_DIR_RESOLVED="$candidate"
             return
         fi
     done
 
-    die "Could not find templates directory with $BASEBOX_CONFIG_FILE_NAME, $BASEBOX_LAUNCH_TEMPLATE_FILE_NAME, launcher templates, $LINUX_DEPS_HELPER_FILE_NAME, and $UPDATE_MARKER_FILE_NAME."
+    die "Could not find templates directory with $BASEBOX_CONFIG_FILE_NAME, $BASEBOX_LAUNCH_TEMPLATE_FILE_NAME, launcher templates, run launcher templates, $LINUX_DEPS_HELPER_FILE_NAME, and $UPDATE_MARKER_FILE_NAME."
 }
 
 init_work_root() {
@@ -442,6 +449,7 @@ escape_sed_replacement() {
 install_launchers() {
     progress 'install_launchers'
     local launcher
+    local run_launcher
     local escaped_basebox_build
     local escaped_windows_basebox_exe
 
@@ -449,13 +457,18 @@ install_launchers() {
     escaped_windows_basebox_exe="$(escape_sed_replacement "$WINDOWS_BASEBOX_EXE_FILE_NAME")"
 
     for launcher in "${TOP_LEVEL_LAUNCHERS[@]}"; do
+        cp "$TEMPLATE_DIR_RESOLVED/$launcher" "$STAGED_ENSEMBLE_DIR/$launcher"
+    done
+
+    for run_launcher in "${TOP_LEVEL_RUN_LAUNCHERS[@]}"; do
         sed \
             -e "s|$BASEBOX_BUILD_PLACEHOLDER|$escaped_basebox_build|g" \
             -e "s|$WINDOWS_BASEBOX_EXE_PLACEHOLDER|$escaped_windows_basebox_exe|g" \
-            "$TEMPLATE_DIR_RESOLVED/$launcher" > "$STAGED_ENSEMBLE_DIR/$launcher"
+            "$TEMPLATE_DIR_RESOLVED/$run_launcher" > "$STAGED_BASEBOX_ROOT_DIR/$run_launcher.update"
     done
 
     chmod +x "$STAGED_ENSEMBLE_DIR/$LINUX_LAUNCHER_FILE_NAME"
+    chmod +x "$STAGED_BASEBOX_ROOT_DIR/$LINUX_RUN_LAUNCHER_FILE_NAME.update"
 }
 
 install_helpers() {
@@ -482,6 +495,10 @@ check_no_absolute_path_leaks() {
 
     for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
         generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
+    done
+
+    for file in "${TOP_LEVEL_RUN_LAUNCHERS[@]}"; do
+        generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$file.update")
     done
 
     for file in "${TOP_LEVEL_HELPERS[@]}"; do
