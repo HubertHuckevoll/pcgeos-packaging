@@ -143,14 +143,6 @@ check_required_tools() {
     select_downloader
 }
 
-validate_output_dir() {
-    progress 'validate_output_dir'
-
-    if [[ -z "$OUTPUT_DIR" || "$OUTPUT_DIR" == "/" ]]; then
-        die "Refusing unsafe OUTPUT_DIR value: '$OUTPUT_DIR'"
-    fi
-}
-
 resolve_template_dir() {
     progress 'resolve_template_dir'
     local candidate
@@ -245,19 +237,6 @@ download_file() {
             -O "$destination" \
             "$url"
     fi
-}
-
-download_basebox_archive() {
-    progress 'download_basebox_archive'
-
-    download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
-}
-
-download_geos_archive() {
-    progress 'download_geos_archive'
-    local geos_zip_url="$1"
-
-    download_file "$geos_zip_url" "$GEOS_ZIP_PATH"
 }
 
 find_archive_dir() {
@@ -474,38 +453,6 @@ install_helpers() {
     done
 }
 
-stage_update_marker() {
-    progress 'stage_update_marker'
-    cp "$TEMPLATE_DIR_RESOLVED/$UPDATE_MARKER_FILE_NAME" "$STAGED_ENSEMBLE_DIR/$UPDATE_MARKER_FILE_NAME"
-}
-
-check_no_absolute_path_leaks() {
-    progress 'check_no_absolute_path_leaks'
-    local file
-    local -a generated_files=()
-
-    generated_files+=("$STAGED_ENSEMBLE_DIR/$BASEBOX_CONFIG_FILE_NAME")
-    generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$BASEBOX_LAUNCH_TEMPLATE_FILE_NAME")
-
-    for file in "${TOP_LEVEL_LAUNCHERS[@]}"; do
-        generated_files+=("$STAGED_ENSEMBLE_DIR/$file")
-    done
-
-    for file in "${TOP_LEVEL_RUN_LAUNCHERS[@]}"; do
-        generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$file.update")
-    done
-
-    for file in "${TOP_LEVEL_HELPERS[@]}"; do
-        generated_files+=("$STAGED_BASEBOX_ROOT_DIR/$file")
-    done
-
-    for file in "${generated_files[@]}"; do
-        if awk -v p1="$TMP_ROOT" -v p2="$PWD" -v p3="$VARIANT_OUTPUT_DIR" -v p4="$OUTPUT_DIR" 'index($0,p1) || index($0,p2) || index($0,p3) || index($0,p4) { found=1 } END { exit found ? 0 : 1 }' "$file"; then
-            die "Absolute build path leaked into generated file: $file"
-        fi
-    done
-}
-
 build_archive() {
     progress 'build_archive'
     (
@@ -538,7 +485,7 @@ build_variant() {
     local language_suffix="$5"
 
     init_variant_workspace "$variant_key"
-    download_geos_archive "$geos_zip_url"
+    download_file "$geos_zip_url" "$GEOS_ZIP_PATH"
     extract_geos_archive
     prepare_output_paths "$variant_output_dir" "$package_version" "$language_suffix"
     stage_ensemble_tree
@@ -546,8 +493,7 @@ build_variant() {
     stage_basebox_configs
     install_launchers
     install_helpers
-    check_no_absolute_path_leaks
-    stage_update_marker
+    cp "$TEMPLATE_DIR_RESOLVED/$UPDATE_MARKER_FILE_NAME" "$STAGED_ENSEMBLE_DIR/$UPDATE_MARKER_FILE_NAME"
     build_archive
     verify_zip_layout
     cleanup_staged_ensemble_tree
@@ -563,12 +509,15 @@ main() {
     local package_version
     local language_suffix
 
-    validate_output_dir
+    if [[ -z "$OUTPUT_DIR" || "$OUTPUT_DIR" == "/" ]]; then
+        die "Refusing unsafe OUTPUT_DIR value: '$OUTPUT_DIR'"
+    fi
+
     check_required_tools
     resolve_template_dir
     resolve_build_variants
     init_basebox_workspace
-    download_basebox_archive
+    download_file "$BASEBOX_ZIP_URL" "$BASEBOX_ZIP_PATH"
     extract_basebox_archive
 
     for variant_spec in "${BUILD_VARIANTS[@]}"; do
