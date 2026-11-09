@@ -371,6 +371,18 @@ stage_basebox_tree() {
     shopt -u nullglob
 }
 
+add_basebox_version() {
+    progress 'add_basebox_version'
+    local -a version_files=("$STAGED_ENSEMBLE_DIR"/FREEGEOS/*/SETUP/ACTIVATE/VERSION.TXT)
+
+    [[ "${#version_files[@]}" -eq 1 && -f "${version_files[0]}" ]] \
+        || die 'Expected one FreeGEOS SETUP/ACTIVATE/VERSION.TXT; rebuild the GEOS archive.'
+    [[ "$DETECTED_BASEBOX_BUILD_NAME" =~ ^BLD([0-9]+)$ ]] \
+        || die "Invalid Basebox build folder: $DETECTED_BASEBOX_BUILD_NAME"
+
+    printf 'Basebox Build %s\r\n' "${BASH_REMATCH[1]}" >> "${version_files[0]}"
+}
+
 stage_basebox_configs() {
     progress 'stage_basebox_configs'
     mkdir -p "$STAGED_BASEBOX_ROOT_DIR"
@@ -489,6 +501,7 @@ build_variant() {
     prepare_output_paths "$variant_output_dir" "$package_version" "$language_suffix"
     stage_ensemble_tree
     stage_basebox_tree
+    add_basebox_version
     stage_basebox_configs
     install_launchers
     install_helpers
