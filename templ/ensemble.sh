@@ -5,6 +5,7 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 UPDATE_MARKER="${SCRIPT_DIR}/update.txt"
 RUN_LAUNCHER="${SCRIPT_DIR}/BASEBOX/ensemble-run.sh"
 LOG_FILE="${SCRIPT_DIR}/ensemble.log"
+: > "$LOG_FILE"
 
 log_line() {
     printf '%s\n' "$1" >> "$LOG_FILE"

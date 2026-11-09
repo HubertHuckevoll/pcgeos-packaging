@@ -5,6 +5,7 @@ set "SCRIPT_DIR=%~dp0"
 set "UPDATE_MARKER=%SCRIPT_DIR%update.txt"
 set "RUN_LAUNCHER=%SCRIPT_DIR%BASEBOX\ensemble-run.cmd"
 set "LOG_FILE=%SCRIPT_DIR%ensemble.log"
+type nul > "%LOG_FILE%"
 
 if exist "%UPDATE_MARKER%" (
     call :promote_pending_launcher "%SCRIPT_DIR%BASEBOX\ensemble-run.cmd"
