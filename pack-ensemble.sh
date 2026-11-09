@@ -220,8 +220,7 @@ download_file() {
 
     if [[ "$DOWNLOADER" == "curl" ]]; then
         curl -fL \
-            --retry 3 \
-            --retry-delay 1 \
+            --retry 5 \
             --connect-timeout 20 \
             --speed-limit 1024 \
             --speed-time 60 \
